@@ -5,39 +5,34 @@
  */
 
 import type { ProjectIndex } from '../storage/index-store.js';
-import type { FileNode, ExportInfo } from '../parsers/base-parser.js';
+import type { FileNode } from '../parsers/base-parser.js';
 import { TypeScriptParser } from '../parsers/typescript-parser.js';
 import { DependencyGraph } from '../graph/dependency-graph.js';
-import { logger } from '../utils/logger.js';
+import { importPointsTo } from '../utils/import-resolver.js';
+import { resolveImportPath } from '../utils/import-resolver.js';
 
 export type IssueSeverity = 'error' | 'warning' | 'info';
 
 export interface CheckIssue {
   severity: IssueSeverity;
   message: string;
-  /** Fichier affecte (le fichier verifie ou un dependant) */
   file: string;
 }
 
 export interface CheckResult {
   filePath: string;
-  /** Nombre de problemes trouves */
   issueCount: number;
   issues: CheckIssue[];
-  /** Exports supprimes par rapport a l'ancien index */
   removedExports: string[];
-  /** Exports ajoutes */
   addedExports: string[];
-  /** Imports potentiellement casses dans les dependants */
   brokenImports: BrokenImport[];
-  /** True si le fichier a ete re-indexe avec succes */
   reindexed: boolean;
+  /** Index mis a jour (l'appelant doit le sauvegarder) */
+  updatedIndex: ProjectIndex;
 }
 
 export interface BrokenImport {
-  /** Fichier qui importe le symbole manquant */
   importingFile: string;
-  /** Nom du symbole importe qui n'existe plus */
   symbolName: string;
 }
 
@@ -45,14 +40,19 @@ export async function runCheck(
   index: ProjectIndex,
   filePath: string,
 ): Promise<CheckResult> {
+  // Travailler sur une copie pour ne pas muter l'original
+  const updatedIndex: ProjectIndex = {
+    ...index,
+    files: { ...index.files },
+  };
+
   const issues: CheckIssue[] = [];
   const removedExports: string[] = [];
   const addedExports: string[] = [];
   const brokenImports: BrokenImport[] = [];
 
   const oldNode = index.files[filePath];
-  const oldExports = oldNode?.exports ?? [];
-  const oldExportNames = new Set(oldExports.map((e) => e.name));
+  const oldExportNames = new Set((oldNode?.exports ?? []).map((e) => e.name));
 
   // -- Re-parser le fichier modifie --
   let newNode: FileNode | null = null;
@@ -62,66 +62,48 @@ export async function runCheck(
     const parser = new TypeScriptParser();
     if (parser.canParse(filePath)) {
       newNode = await parser.parseFile(filePath);
-      // Mettre a jour l'index en memoire
-      index.files[filePath] = newNode;
-      index.fileCount = Object.keys(index.files).length;
-      index.indexedAt = Date.now();
+      updatedIndex.files[filePath] = newNode;
+      updatedIndex.fileCount = Object.keys(updatedIndex.files).length;
+      updatedIndex.indexedAt = Date.now();
       reindexed = true;
     }
   } catch (error) {
     issues.push({
       severity: 'error',
-      message: `Impossible de re-parser le fichier : ${error instanceof Error ? error.message : String(error)}`,
+      message: `Impossible de re-parser : ${error instanceof Error ? error.message : String(error)}`,
       file: filePath,
     });
   }
 
   if (!newNode) {
-    return {
-      filePath,
-      issueCount: issues.length,
-      issues,
-      removedExports,
-      addedExports,
-      brokenImports,
-      reindexed,
-    };
+    return { filePath, issueCount: issues.length, issues, removedExports, addedExports, brokenImports, reindexed, updatedIndex };
   }
 
   // -- Comparer les exports --
   const newExportNames = new Set(newNode.exports.map((e) => e.name));
 
   for (const name of oldExportNames) {
-    if (!newExportNames.has(name)) {
-      removedExports.push(name);
-    }
+    if (!newExportNames.has(name)) removedExports.push(name);
   }
-
   for (const name of newExportNames) {
-    if (!oldExportNames.has(name)) {
-      addedExports.push(name);
-    }
+    if (!oldExportNames.has(name)) addedExports.push(name);
   }
 
-  // -- Detecter les imports casses --
+  // -- Detecter les imports casses (resolution complete, pas par nom de base) --
   if (removedExports.length > 0) {
-    const graph = DependencyGraph.fromIndex(index);
+    const graph = DependencyGraph.fromIndex(updatedIndex);
     const dependents = graph.getDependents(filePath);
 
     for (const depFile of dependents) {
-      const depNode = index.files[depFile];
+      const depNode = updatedIndex.files[depFile];
       if (!depNode) continue;
 
       for (const imp of depNode.imports) {
-        // Verifier si cet import pointe vers notre fichier
-        if (!importPointsTo(imp.source, filePath, depFile)) continue;
+        if (!imp.source.startsWith('.')) continue;
+        if (!importPointsTo(imp.source, filePath, depFile, updatedIndex.files)) continue;
 
         if (removedExports.includes(imp.name)) {
-          brokenImports.push({
-            importingFile: depFile,
-            symbolName: imp.name,
-          });
-
+          brokenImports.push({ importingFile: depFile, symbolName: imp.name });
           issues.push({
             severity: 'error',
             message: `Import casse : "${imp.name}" n'est plus exporte par ${filePath}`,
@@ -132,11 +114,11 @@ export async function runCheck(
     }
   }
 
-  // -- Alertes sur les suppressions meme sans casse immediate --
+  // -- Suppressions sans casse immediate --
   if (removedExports.length > 0 && brokenImports.length === 0) {
     issues.push({
       severity: 'warning',
-      message: `${removedExports.length} export(s) supprime(s) : ${removedExports.join(', ')}. Aucun import casse detecte dans les fichiers indexes.`,
+      message: `${removedExports.length} export(s) supprime(s) : ${removedExports.join(', ')}. Aucun import casse detecte.`,
       file: filePath,
     });
   }
@@ -147,7 +129,6 @@ export async function runCheck(
       const oldType = oldNode.types.find((t) => t.name === newType.name);
       if (!oldType) continue;
 
-      // Verifier si des proprietes ont ete supprimees
       const oldProps = new Set(oldType.properties.map((p) => p.name));
       const newProps = new Set(newType.properties.map((p) => p.name));
 
@@ -155,12 +136,11 @@ export async function runCheck(
       if (removedProps.length > 0) {
         issues.push({
           severity: 'warning',
-          message: `Type "${newType.name}" : propriete(s) supprimee(s) : ${removedProps.join(', ')}. Les fichiers qui utilisent ce type peuvent casser.`,
+          message: `Type "${newType.name}" : propriete(s) supprimee(s) : ${removedProps.join(', ')}.`,
           file: filePath,
         });
       }
 
-      // Verifier si des proprietes requises ont ete ajoutees
       const addedRequiredProps = newType.properties
         .filter((p) => !oldProps.has(p.name) && !p.isOptional)
         .map((p) => p.name);
@@ -168,32 +148,28 @@ export async function runCheck(
       if (addedRequiredProps.length > 0) {
         issues.push({
           severity: 'warning',
-          message: `Type "${newType.name}" : nouvelle(s) propriete(s) requise(s) : ${addedRequiredProps.join(', ')}. Les fichiers qui creent ce type devront les fournir.`,
+          message: `Type "${newType.name}" : nouvelle(s) propriete(s) requise(s) : ${addedRequiredProps.join(', ')}.`,
           file: filePath,
         });
       }
     }
   }
 
-  // -- Verifier les imports du fichier modifie --
+  // -- Verifier les imports du fichier modifie (resolution complete) --
   for (const imp of newNode.imports) {
     if (imp.source.startsWith('.')) {
-      // Import relatif — verifier que le fichier cible existe dans l'index
-      const targetExists = Object.keys(index.files).some((f) =>
-        importPointsTo(imp.source, f, filePath),
-      );
-
-      if (!targetExists) {
+      const resolved = resolveImportPath(filePath, imp.source, updatedIndex.files);
+      if (!resolved) {
         issues.push({
           severity: 'error',
-          message: `Import vers "${imp.source}" — fichier cible introuvable dans l'index.`,
+          message: `Import vers "${imp.source}" — fichier cible introuvable.`,
           file: filePath,
         });
       }
     }
   }
 
-  // -- Info si des exports ont ete ajoutes --
+  // -- Nouveaux exports --
   if (addedExports.length > 0) {
     issues.push({
       severity: 'info',
@@ -210,25 +186,8 @@ export async function runCheck(
     addedExports,
     brokenImports,
     reindexed,
+    updatedIndex,
   };
-}
-
-/** Verifie si un import source pointe probablement vers un fichier cible */
-function importPointsTo(importSource: string, targetFile: string, fromFile: string): boolean {
-  // Simplification : on compare les noms de base des fichiers
-  const importBase = importSource
-    .replace(/\\/g, '/')
-    .split('/')
-    .pop()
-    ?.replace(/\.(js|jsx|ts|tsx|mjs|cjs)$/, '') ?? '';
-
-  const targetBase = targetFile
-    .replace(/\\/g, '/')
-    .split('/')
-    .pop()
-    ?.replace(/\.(js|jsx|ts|tsx|mjs|cjs)$/, '') ?? '';
-
-  return importBase === targetBase && importBase !== '';
 }
 
 /** Formate le resultat pour affichage MCP */

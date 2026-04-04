@@ -34,14 +34,37 @@ import { DependencyGraph } from './graph/dependency-graph.js';
 const PROJECT_ROOT = process.argv[2] ?? process.cwd();
 const resolvedRoot = resolve(PROJECT_ROOT);
 
+// Valider que le dossier existe
+try {
+  const rootStat = statSync(resolvedRoot);
+  if (!rootStat.isDirectory()) {
+    process.exit(1);
+  }
+} catch {
+  process.exit(1);
+}
+
 initLogger(resolvedRoot, 'info');
 logger.info('CodeGuard demarre', { projectRoot: resolvedRoot });
 
 // --- State ---
 
 let currentIndex: ProjectIndex | null = null;
+let currentGraph: DependencyGraph | null = null;
 const store = new IndexStore(resolvedRoot);
 const tsParser = new TypeScriptParser();
+
+/** Reconstruit le graphe a partir de l'index courant */
+function rebuildGraph(index: ProjectIndex): DependencyGraph {
+  currentGraph = DependencyGraph.fromIndex(index);
+  return currentGraph;
+}
+
+/** Retourne le graphe cache ou le reconstruit */
+function getGraph(): DependencyGraph {
+  if (currentGraph) return currentGraph;
+  return rebuildGraph(getIndex());
+}
 
 // --- Indexation ---
 
@@ -109,6 +132,7 @@ async function indexProject(incremental = false): Promise<{ index: ProjectIndex;
 
   store.save(index);
   currentIndex = index;
+  rebuildGraph(index);
   logger.info('Indexation complete', { fileCount: index.fileCount, parsed, skipped, removed });
 
   return { index, stats: { total: tsFiles.length, parsed, skipped, removed } };
@@ -120,6 +144,7 @@ function getIndex(): ProjectIndex {
   const loaded = store.load();
   if (loaded) {
     currentIndex = loaded;
+    rebuildGraph(loaded);
     return loaded;
   }
 
@@ -308,7 +333,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'reindex': {
         const incremental = args?.incremental === true;
         const { index, stats } = await indexProject(incremental);
-        const graph = DependencyGraph.fromIndex(index);
+        const graph = getGraph();
         const mode = incremental ? 'incremental' : 'complet';
         return {
           content: [
@@ -357,9 +382,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'dependencies': {
-        const index = getIndex();
+        getIndex();
         const filePath = resolveFilePath(args?.filePath as string);
-        const graph = DependencyGraph.fromIndex(index);
+        const graph = getGraph();
         const deps = graph.getDependencies(filePath);
         const dependents = graph.getDependents(filePath);
 
@@ -394,8 +419,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const index = getIndex();
         const filePath = resolveFilePath(args?.filePath as string);
         const result = await runCheck(index, filePath);
-        // Sauvegarder l'index mis a jour
-        store.save(index);
+        // Appliquer l'index mis a jour et reconstruire le graphe
+        currentIndex = result.updatedIndex;
+        store.save(result.updatedIndex);
+        rebuildGraph(result.updatedIndex);
         return {
           content: [{ type: 'text' as const, text: formatCheckResult(result) }],
         };
@@ -459,6 +486,7 @@ async function main(): Promise<void> {
   const existing = store.load();
   if (existing) {
     currentIndex = existing;
+    rebuildGraph(existing);
     logger.info('Index charge depuis le cache', { fileCount: existing.fileCount });
   }
 

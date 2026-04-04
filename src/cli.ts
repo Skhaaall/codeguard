@@ -40,7 +40,7 @@ async function readStdin(): Promise<string> {
     process.stdin.setEncoding('utf-8');
     process.stdin.on('data', (chunk) => { data += chunk; });
     process.stdin.on('end', () => resolve(data));
-    setTimeout(() => resolve(data), 2000);
+    setTimeout(() => resolve(data), 10000);
   });
 }
 
@@ -126,7 +126,10 @@ async function runHookMode(command: string): Promise<void> {
       hookCwd = hookInput?.cwd ?? '';
       if (filePath) filePath = resolve(filePath);
     } catch {
-      // stdin non-JSON
+      // stdin non-JSON — logger un warning si le contenu n'est pas vide
+      if (stdinData.trim().length > 0) {
+        logger.warn('Stdin non-JSON recu par le hook', { preview: stdinData.slice(0, 200) });
+      }
     }
   }
 

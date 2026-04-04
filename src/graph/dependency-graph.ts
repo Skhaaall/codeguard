@@ -6,8 +6,8 @@
  *   - dependedBy : "ce fichier est utilise par..."
  */
 
-import { resolve, dirname } from 'node:path';
 import type { ProjectIndex } from '../storage/index-store.js';
+import { resolveImportPath } from '../utils/import-resolver.js';
 
 export interface DependencyEdge {
   from: string; // fichier qui importe
@@ -20,8 +20,8 @@ export class DependencyGraph {
   private dependsOn = new Map<string, Set<string>>();
   /** Fichier → fichiers qui l'utilisent */
   private dependedBy = new Map<string, Set<string>>();
-  /** Toutes les aretes avec le detail des imports */
-  private edges: DependencyEdge[] = [];
+  /** Aretes indexees par cle "from|||to" pour lookup O(1) */
+  private edgeMap = new Map<string, DependencyEdge>();
 
   /** Construit le graphe a partir de l'index du projet */
   static fromIndex(index: ProjectIndex): DependencyGraph {
@@ -29,10 +29,9 @@ export class DependencyGraph {
 
     for (const [filePath, node] of Object.entries(index.files)) {
       for (const imp of node.imports) {
-        // Ignorer les imports de packages externes (pas de ./ ou ../)
         if (!imp.source.startsWith('.')) continue;
 
-        const resolvedTarget = resolveImportPath(filePath, imp.source, index);
+        const resolvedTarget = resolveImportPath(filePath, imp.source, index.files);
         if (!resolvedTarget) continue;
 
         graph.addEdge(filePath, resolvedTarget, imp.name);
@@ -51,12 +50,13 @@ export class DependencyGraph {
     if (!this.dependedBy.has(to)) this.dependedBy.set(to, new Set());
     this.dependedBy.get(to)!.add(from);
 
-    // Edge detail
-    const existing = this.edges.find((e) => e.from === from && e.to === to);
+    // Edge detail — lookup O(1) via Map
+    const key = `${from}|||${to}`;
+    const existing = this.edgeMap.get(key);
     if (existing) {
       existing.imports.push(importName);
     } else {
-      this.edges.push({ from, to, imports: [importName] });
+      this.edgeMap.set(key, { from, to, imports: [importName] });
     }
   }
 
@@ -93,7 +93,7 @@ export class DependencyGraph {
 
   /** Toutes les aretes du graphe */
   getEdges(): DependencyEdge[] {
-    return [...this.edges];
+    return [...this.edgeMap.values()];
   }
 
   /** Nombre de noeuds uniques */
@@ -108,51 +108,6 @@ export class DependencyGraph {
 
   /** Nombre d'aretes */
   getEdgeCount(): number {
-    return this.edges.length;
+    return this.edgeMap.size;
   }
-}
-
-/**
- * Resout un chemin d'import relatif vers un chemin absolu.
- * Gere la convention ESM (import from './foo.js' → fichier reel foo.ts).
- */
-function resolveImportPath(fromFile: string, importSource: string, index: ProjectIndex): string | null {
-  const dir = dirname(fromFile);
-  const base = resolve(dir, importSource);
-
-  // Extensions JS que TypeScript utilise dans les imports ESM
-  const jsExtensions = ['.js', '.jsx', '.mjs', '.cjs'];
-  // Extensions a essayer pour trouver le fichier reel
-  const tsExtensions = ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js'];
-
-  // Construire les bases a tester :
-  // 1. Le chemin tel quel
-  // 2. Le chemin sans l'extension JS (convention ESM : import './foo.js' → fichier foo.ts)
-  const bases = [base];
-  for (const jsExt of jsExtensions) {
-    if (base.endsWith(jsExt)) {
-      bases.push(base.slice(0, -jsExt.length));
-      break;
-    }
-  }
-
-  for (const b of bases) {
-    // Essayer avec les forward slashes (Unix / normalized)
-    const fwd = b.replace(/\\/g, '/');
-    if (index.files[fwd]) return fwd;
-    for (const ext of tsExtensions) {
-      const candidate = fwd + ext;
-      if (index.files[candidate]) return candidate;
-    }
-
-    // Essayer avec les backslashes (Windows)
-    const win = b.replace(/\//g, '\\');
-    if (index.files[win]) return win;
-    for (const ext of tsExtensions) {
-      const candidate = win + ext;
-      if (index.files[candidate]) return candidate;
-    }
-  }
-
-  return null;
 }

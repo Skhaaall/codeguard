@@ -6,6 +6,8 @@
 
 import type { ProjectIndex } from '../storage/index-store.js';
 import { DependencyGraph } from '../graph/dependency-graph.js';
+import { resolveImportPath } from '../utils/import-resolver.js';
+import { toShortPath } from '../utils/path.js';
 
 export type HealthGrade = 'A' | 'B' | 'C' | 'D' | 'F';
 
@@ -17,15 +19,10 @@ export interface HealthIssue {
 }
 
 export interface HealthResult {
-  /** Note globale (A = excellent, F = critique) */
   grade: HealthGrade;
-  /** Score numerique (0-100) */
   score: number;
-  /** Nombre total de fichiers indexes */
   fileCount: number;
-  /** Problemes detectes */
   issues: HealthIssue[];
-  /** Metriques detaillees */
   metrics: {
     brokenImports: number;
     orphanFiles: number;
@@ -37,8 +34,8 @@ export interface HealthResult {
   };
 }
 
-export function runHealth(index: ProjectIndex): HealthResult {
-  const graph = DependencyGraph.fromIndex(index);
+export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthResult {
+  const g = graph ?? DependencyGraph.fromIndex(index);
   const issues: HealthIssue[] = [];
   let penalty = 0;
 
@@ -51,27 +48,16 @@ export function runHealth(index: ProjectIndex): HealthResult {
   let totalExports = 0;
   let totalImports = 0;
 
-  // -- 1. Imports casses --
+  // -- 1. Imports casses (resolution complete) --
   for (const [filePath, node] of files) {
     totalImports += node.imports.length;
     totalExports += node.exports.length;
 
     for (const imp of node.imports) {
-      if (!imp.source.startsWith('.')) continue; // ignorer les packages externes
+      if (!imp.source.startsWith('.')) continue;
 
-      // Verifier si le fichier cible existe dans l'index
-      const deps = graph.getDependencies(filePath);
-      const importBase = imp.source
-        .replace(/\.(js|jsx|ts|tsx|mjs|cjs)$/, '')
-        .split('/')
-        .pop() ?? '';
-
-      const found = deps.some((d) => {
-        const depBase = d.replace(/\\/g, '/').split('/').pop()?.replace(/\.(js|jsx|ts|tsx|mjs|cjs)$/, '') ?? '';
-        return depBase === importBase;
-      });
-
-      if (!found && importBase) {
+      const resolved = resolveImportPath(filePath, imp.source, index.files);
+      if (!resolved) {
         brokenImports++;
         issues.push({
           severity: 'error',
@@ -82,16 +68,14 @@ export function runHealth(index: ProjectIndex): HealthResult {
       }
     }
   }
-  // Chaque import casse = -5 points
   penalty += brokenImports * 5;
 
-  // -- 2. Fichiers orphelins (pas importes, pas un entry point) --
+  // -- 2. Fichiers orphelins --
   for (const [filePath] of files) {
-    const dependents = graph.getDependents(filePath);
-    const deps = graph.getDependencies(filePath);
+    const dependents = g.getDependents(filePath);
+    const deps = g.getDependencies(filePath);
     const normalized = filePath.replace(/\\/g, '/');
 
-    // Un fichier est orphelin s'il n'est importe par personne ET n'est pas un entry point
     const isEntryPoint = normalized.includes('index.ts') ||
       normalized.includes('index.js') ||
       normalized.includes('main.ts') ||
@@ -110,12 +94,11 @@ export function runHealth(index: ProjectIndex): HealthResult {
       });
     }
   }
-  // Chaque orphelin = -2 points
   penalty += orphanFiles * 2;
 
-  // -- 3. Fichiers a haut risque (tres partages) --
+  // -- 3. Fichiers a haut risque --
   for (const [filePath] of files) {
-    const dependents = graph.getDependents(filePath);
+    const dependents = g.getDependents(filePath);
     if (dependents.length >= 10) {
       highRiskFiles++;
       issues.push({
@@ -126,23 +109,21 @@ export function runHealth(index: ProjectIndex): HealthResult {
       });
     }
   }
-  // Chaque fichier a haut risque = -3 points
   penalty += highRiskFiles * 3;
 
-  // -- 4. Dependances circulaires --
-  const circularPairs = detectCircularDeps(graph, files.map(([f]) => f));
-  circularDeps = circularPairs.length;
-  for (const [a, b] of circularPairs) {
+  // -- 4. Dependances circulaires (Tarjan — SCC) --
+  const sccs = findStronglyConnectedComponents(g, files.map(([f]) => f));
+  circularDeps = sccs.length;
+  for (const scc of sccs) {
     issues.push({
       severity: 'error',
       category: 'Dependance circulaire',
-      message: `${shortPath(a)} <-> ${shortPath(b)}`,
+      message: scc.map(toShortPath).join(' <-> '),
     });
   }
-  // Chaque circulaire = -8 points
   penalty += circularDeps * 8;
 
-  // -- 5. Fichiers avec trop d'exports (potentiel god file) --
+  // -- 5. Fichiers volumineux --
   for (const [filePath, node] of files) {
     if (node.exports.length >= 15) {
       largeFiles++;
@@ -154,43 +135,22 @@ export function runHealth(index: ProjectIndex): HealthResult {
       });
     }
   }
-  // Chaque god file = -1 point
   penalty += largeFiles;
 
   // -- Score final --
   const score = Math.max(0, Math.min(100, 100 - penalty));
   const grade = scoreToGrade(score);
 
-  // Ajouter des infos positives
   if (brokenImports === 0) {
-    issues.push({
-      severity: 'info',
-      category: 'Imports',
-      message: 'Aucun import casse detecte',
-    });
+    issues.push({ severity: 'info', category: 'Imports', message: 'Aucun import casse detecte' });
   }
   if (circularDeps === 0) {
-    issues.push({
-      severity: 'info',
-      category: 'Dependances',
-      message: 'Aucune dependance circulaire',
-    });
+    issues.push({ severity: 'info', category: 'Dependances', message: 'Aucune dependance circulaire' });
   }
 
   return {
-    grade,
-    score,
-    fileCount: files.length,
-    issues,
-    metrics: {
-      brokenImports,
-      orphanFiles,
-      highRiskFiles,
-      circularDeps,
-      largeFiles,
-      totalExports,
-      totalImports,
-    },
+    grade, score, fileCount: files.length, issues,
+    metrics: { brokenImports, orphanFiles, highRiskFiles, circularDeps, largeFiles, totalExports, totalImports },
   };
 }
 
@@ -202,34 +162,57 @@ function scoreToGrade(score: number): HealthGrade {
   return 'F';
 }
 
-/** Detecte les dependances circulaires directes (A → B et B → A) */
-function detectCircularDeps(graph: DependencyGraph, filePaths: string[]): [string, string][] {
-  const seen = new Set<string>();
-  const pairs: [string, string][] = [];
+/**
+ * Tarjan — trouve les composantes fortement connexes (cycles de toute taille).
+ * Retourne uniquement les SCC de taille >= 2 (les vrais cycles).
+ */
+function findStronglyConnectedComponents(graph: DependencyGraph, filePaths: string[]): string[][] {
+  let indexCounter = 0;
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const indices = new Map<string, number>();
+  const lowlinks = new Map<string, number>();
+  const result: string[][] = [];
 
-  for (const filePath of filePaths) {
-    const deps = graph.getDependencies(filePath);
-    for (const dep of deps) {
-      const key = [filePath, dep].sort().join('|||');
-      if (seen.has(key)) continue;
-      seen.add(key);
+  function strongconnect(v: string): void {
+    indices.set(v, indexCounter);
+    lowlinks.set(v, indexCounter);
+    indexCounter++;
+    stack.push(v);
+    onStack.add(v);
 
-      // Verifier si dep importe aussi filePath
-      const reverseDeps = graph.getDependencies(dep);
-      if (reverseDeps.includes(filePath)) {
-        pairs.push([filePath, dep]);
+    for (const w of graph.getDependencies(v)) {
+      if (!indices.has(w)) {
+        strongconnect(w);
+        lowlinks.set(v, Math.min(lowlinks.get(v)!, lowlinks.get(w)!));
+      } else if (onStack.has(w)) {
+        lowlinks.set(v, Math.min(lowlinks.get(v)!, indices.get(w)!));
+      }
+    }
+
+    if (lowlinks.get(v) === indices.get(v)) {
+      const scc: string[] = [];
+      let w: string;
+      do {
+        w = stack.pop()!;
+        onStack.delete(w);
+        scc.push(w);
+      } while (w !== v);
+
+      // Uniquement les cycles (SCC de taille >= 2)
+      if (scc.length >= 2) {
+        result.push(scc);
       }
     }
   }
 
-  return pairs;
-}
+  for (const v of filePaths) {
+    if (!indices.has(v)) {
+      strongconnect(v);
+    }
+  }
 
-function shortPath(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, '/');
-  const srcIdx = normalized.lastIndexOf('/src/');
-  if (srcIdx !== -1) return normalized.slice(srcIdx + 1);
-  return normalized.split('/').slice(-3).join('/');
+  return result;
 }
 
 /** Formate le resultat pour affichage MCP */
@@ -258,7 +241,7 @@ export function formatHealthResult(result: HealthResult): string {
     lines.push('');
     lines.push('### Erreurs');
     for (const issue of errors) {
-      lines.push(`- [${issue.category}] ${issue.message}${issue.file ? ` (${shortPath(issue.file)})` : ''}`);
+      lines.push(`- [${issue.category}] ${issue.message}${issue.file ? ` (${toShortPath(issue.file)})` : ''}`);
     }
   }
 
@@ -266,7 +249,7 @@ export function formatHealthResult(result: HealthResult): string {
     lines.push('');
     lines.push('### Avertissements');
     for (const issue of warnings) {
-      lines.push(`- [${issue.category}] ${issue.message}${issue.file ? ` (${shortPath(issue.file)})` : ''}`);
+      lines.push(`- [${issue.category}] ${issue.message}${issue.file ? ` (${toShortPath(issue.file)})` : ''}`);
     }
   }
 

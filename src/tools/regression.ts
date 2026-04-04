@@ -8,6 +8,7 @@
 import type { ProjectIndex } from '../storage/index-store.js';
 import type { FileNode } from '../parsers/base-parser.js';
 import { DependencyGraph } from '../graph/dependency-graph.js';
+import { toShortPath } from '../utils/path.js';
 
 export interface RegressionTarget {
   /** Chemin du fichier terminal (page, route, entry point) */
@@ -145,18 +146,12 @@ function extractRoute(
   return undefined;
 }
 
-function shortPath(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, '/');
-  const srcIdx = normalized.lastIndexOf('/src/');
-  if (srcIdx !== -1) return normalized.slice(srcIdx + 1);
-  return normalized.split('/').slice(-3).join('/');
-}
 
 /** Formate le resultat pour affichage MCP */
 export function formatRegressionResult(result: RegressionResult): string {
   const lines: string[] = [];
 
-  lines.push(`## Regression Map : ${shortPath(result.sourceFile)}`);
+  lines.push(`## Regression Map : ${toShortPath(result.sourceFile)}`);
   lines.push(`**Cibles a retester** : ${result.targetCount}`);
 
   if (result.targets.length === 0) {
@@ -174,7 +169,7 @@ export function formatRegressionResult(result: RegressionResult): string {
     lines.push('');
     lines.push('### Pages a retester');
     for (const t of pages) {
-      lines.push(`- ${t.route ?? shortPath(t.filePath)} (profondeur: ${t.depth})`);
+      lines.push(`- ${t.route ?? toShortPath(t.filePath)} (profondeur: ${t.depth})`);
     }
   }
 
@@ -182,7 +177,7 @@ export function formatRegressionResult(result: RegressionResult): string {
     lines.push('');
     lines.push('### Routes API affectees');
     for (const t of apiRoutes) {
-      lines.push(`- ${t.route ?? shortPath(t.filePath)} (profondeur: ${t.depth})`);
+      lines.push(`- ${t.route ?? toShortPath(t.filePath)} (profondeur: ${t.depth})`);
     }
   }
 
@@ -190,7 +185,7 @@ export function formatRegressionResult(result: RegressionResult): string {
     lines.push('');
     lines.push('### Entry points');
     for (const t of entryPoints) {
-      lines.push(`- ${shortPath(t.filePath)} (profondeur: ${t.depth})`);
+      lines.push(`- ${toShortPath(t.filePath)} (profondeur: ${t.depth})`);
     }
   }
 
@@ -198,7 +193,7 @@ export function formatRegressionResult(result: RegressionResult): string {
     lines.push('');
     lines.push('### Composants impactes');
     for (const t of components) {
-      lines.push(`- ${shortPath(t.filePath)} (profondeur: ${t.depth})`);
+      lines.push(`- ${toShortPath(t.filePath)} (profondeur: ${t.depth})`);
     }
   }
 
