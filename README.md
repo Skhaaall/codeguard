@@ -1,13 +1,16 @@
 # @skhaall/codeguard
 
-Serveur MCP qui analyse le code TypeScript d'un projet, construit un graphe de dependances, et expose des outils d'analyse pour Claude Code.
+Serveur MCP qui analyse le code TypeScript/Prisma d'un projet, construit un graphe de dependances, et protege contre les modifications dangereuses.
+
+**Ecosysteme** : TypeScript, JavaScript, Prisma (support Python/Go/Rust prevu via tree-sitter en v0.2)
 
 ## Ce que ca fait
 
 - **Impact analysis** — "je modifie ce fichier, qu'est-ce qui casse ?"
-- **Guard** — "est-ce safe de modifier ce fichier ?" (pre-change)
+- **Guard** — "est-ce safe de modifier ce fichier ?" (pre-change, bloque si risque critique)
 - **Check** — detecte les imports casses apres modification (post-change)
-- **Health** — score de sante global du projet (A-F)
+- **Health** — score de sante global du projet (A-F, scoring adaptatif)
+- **Schema check** — coherence Prisma ↔ DTOs backend ↔ types frontend
 - **Regression map** — quelles pages/routes retester apres un changement
 - **Graph** — diagramme Mermaid du graphe de dependances
 - **Search** — "qui utilise cette fonction/type/hook ?"
@@ -15,8 +18,15 @@ Serveur MCP qui analyse le code TypeScript d'un projet, construit un graphe de d
 ## Prerequis
 
 - Node.js >= 20
+- Claude Code (pour les hooks MCP)
 
 ## Installation
+
+```bash
+npm install -g @skhaall/codeguard
+```
+
+Ou depuis les sources :
 
 ```bash
 git clone https://github.com/Skhaaall/codeguard.git
@@ -25,63 +35,74 @@ npm install
 npm run build
 ```
 
+## Setup (hooks automatiques)
+
+Installe les hooks guard + check globalement dans Claude Code :
+
+```bash
+codeguard-setup setup
+```
+
+Pour les retirer :
+
+```bash
+codeguard-setup unsetup
+```
+
 ## Utilisation
 
 ### Serveur MCP (pour Claude Code)
 
-```bash
-node dist/index.js /chemin/vers/le/projet
-```
-
-### CLI (ligne de commande)
-
-```bash
-node dist/cli.js init /chemin/vers/le/projet    # Indexer le projet
-node dist/cli.js status                          # Etat de l'index
-node dist/cli.js health                          # Score de sante
-node dist/cli.js impact src/fichier.ts           # Analyse d'impact
-node dist/cli.js regression src/fichier.ts       # Pages a retester
-node dist/cli.js graph                           # Graphe Mermaid complet
-node dist/cli.js graph src/fichier.ts            # Graphe centre sur un fichier
-```
-
-### Hooks Claude Code
-
-Ajouter dans `.claude/settings.local.json` du projet cible :
+Ajouter dans le `.mcp.json` du projet :
 
 ```json
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "node /chemin/vers/codeguard/dist/cli.js guard" }]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "node /chemin/vers/codeguard/dist/cli.js check" }]
-      }
-    ]
+  "mcpServers": {
+    "codeguard": {
+      "command": "node",
+      "args": ["/chemin/vers/codeguard/dist/index.js"]
+    }
   }
 }
 ```
 
-## Outils MCP
+### CLI
 
-| Outil | Description |
-|---|---|
-| `impact` | Fichiers impactes si on modifie un fichier |
-| `guard` | Verification pre-modification (risques, fichiers a verifier) |
-| `check` | Verification post-modification (imports casses, types changes) |
-| `health` | Score de sante global (imports, cycles, orphelins) |
-| `search` | Recherche de fonctions, types, hooks dans la carte |
-| `dependencies` | Graphe d'un fichier (qui il importe, qui l'importe) |
-| `reindex` | Re-indexer le projet (complet ou incremental) |
-| `status` | Etat de l'index (date, nombre de fichiers) |
-| `regression_map` | Pages et routes a retester apres un changement |
-| `graph` | Diagramme Mermaid du graphe de dependances |
+```bash
+codeguard-cli init [project-root]              # Indexer le projet
+codeguard-cli status [project-root]            # Etat de l'index
+codeguard-cli health [project-root]            # Score de sante (A-F)
+codeguard-cli impact <fichier> [project-root]  # Analyse d'impact
+codeguard-cli regression <fichier> [project-root]  # Pages a retester
+codeguard-cli graph [fichier] [project-root]   # Diagramme Mermaid
+codeguard-cli schema [project-root]            # Coherence Prisma ↔ TS
+```
+
+## Outils MCP (11)
+
+| Outil | Description | Quand |
+|---|---|---|
+| `impact` | Fichiers impactes si on modifie un fichier | Avant modification |
+| `guard` | Risques, fichiers a verifier, recommandation go/no-go | Avant modification |
+| `check` | Imports casses, exports supprimes, types changes | Apres modification |
+| `health` | Score A-F, imports casses, cycles, orphelins | A la demande |
+| `schema_check` | Coherence Prisma ↔ DTOs ↔ types frontend | Apres modif schema |
+| `search` | Recherche fonctions, types, hooks, routes | A la demande |
+| `dependencies` | Graphe d'un fichier (importe / importe par) | A la demande |
+| `reindex` | Re-indexer le projet (complet ou incremental) | Debut de session |
+| `status` | Date, nombre de fichiers, fraicheur de l'index | A la demande |
+| `regression_map` | Pages et routes a retester apres modification | Avant deploy |
+| `graph` | Diagramme Mermaid (complet ou focus sur un fichier) | A la demande |
+
+## Langages supportes
+
+| Langage | Parser | Profondeur |
+|---|---|---|
+| TypeScript/TSX | ts-morph | Complet (types, generics, routes Next.js/NestJS) |
+| JavaScript/JSX | ts-morph | Imports, exports, fonctions, classes |
+| Prisma | Parser custom | Modeles, champs, relations, enums |
+
+Path aliases TypeScript (`@/` → `src/`) et barrel exports (`from './dir'` → `dir/index.ts`) sont geres automatiquement via la lecture du `tsconfig.json`.
 
 ## Stack
 
@@ -89,6 +110,15 @@ Ajouter dans `.claude/settings.local.json` du projet cible :
 - **ts-morph** — parsing profond TypeScript
 - **@modelcontextprotocol/sdk** — protocole MCP standard (stdio)
 - Index JSON cache dans `.codeguard/`
+- Zero dependance lourde (pas de Docker, pas de base de donnees)
+
+## Securite
+
+- Path traversal bloque (les chemins doivent rester dans le projet)
+- Validation des inputs MCP a runtime
+- Limites DoS (stdin 1 Mo, index 50 Mo)
+- Liens symboliques ignores
+- CodeGuard lit le code source mais ne le modifie JAMAIS
 
 ## Licence
 

@@ -1,7 +1,7 @@
 {
   "name": "@skhaall/codeguard",
   "version": "0.1.0",
-  "description": "MCP server — carte du projet et impact analysis pour Claude Code",
+  "description": "MCP server — analyse de code TypeScript/Prisma, graphe de dependances, impact analysis pour Claude Code",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -9,21 +9,37 @@
     "codeguard-cli": "dist/cli.js",
     "codeguard-setup": "dist/setup.js"
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "guard": "node dist/cli.js guard",
     "check": "node dist/cli.js check",
-    "lint": "eslint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
     "claude",
+    "claude-code",
     "code-analysis",
-    "impact-analysis"
+    "impact-analysis",
+    "dependency-graph",
+    "typescript",
+    "prisma",
+    "guard",
+    "schema-check"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Skhaaall/codeguard.git"
+  },
+  "author": "Skhaall",
   "license": "MIT",
   "engines": {
     "node": ">=20"
