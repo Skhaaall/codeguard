@@ -7,9 +7,11 @@ dist/
 .mcp.json
 
 # Fichiers internes (pas dans le repo public)
-.claude/settings.json
-.claude/settings.local.json
-test-mcp.mjs
-AUDIT-RESUME.md
+CLAUDE.md
+todo.md
 historique-todo.md
 MEMORY.md
+AUDIT-RESUME.md
+test-mcp.mjs
+.claude/settings.json
+.claude/settings.local.json
