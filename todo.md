@@ -120,7 +120,7 @@ parsers/
 
 - [ ] **Visualisation** — graphe de dependances en mermaid (affichable dans une issue GitHub)
 - [ ] **Incremental** — ne re-parser que les fichiers modifies (perf sur gros projets)
-- [ ] **npm package** — publier pour l'utiliser sur n'importe quel projet via `npx codeguard`
+- [ ] **npm package** — publier pour l'utiliser sur n'importe quel projet via `npx @skhaall/codeguard`
 
 ---
 

@@ -98,7 +98,7 @@ async function runTests() {
     });
 
     const initResp = await waitForResponse();
-    assert(initResp?.result?.serverInfo?.name === 'codeguard', 'Serveur identifie comme "codeguard"');
+    assert(initResp?.result?.serverInfo?.name === '@skhaall/codeguard', 'Serveur identifie comme "@skhaall/codeguard"');
     assert(initResp?.result?.serverInfo?.version === '0.1.0', 'Version 0.1.0');
     assert(initResp?.result?.capabilities?.tools !== undefined, 'Capabilities "tools" presentes');
 
