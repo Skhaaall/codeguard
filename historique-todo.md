@@ -84,3 +84,36 @@
 ### Package.json
 - Ajout bin `codeguard-cli` → `dist/cli.js`
 - Ajout scripts `guard` et `check`
+
+---
+
+## Session 4 — 4 avril 2026 (commit `8bd5637`)
+
+### P2 — Health (score de sante global)
+- **Fichier** : `src/tools/health.ts` (nouveau)
+- Score de A (excellent) a F (critique), note sur 100
+- Detecte : imports casses (-5pts chacun), fichiers orphelins (-2pts), fichiers haut risque (-3pts), dependances circulaires (-8pts), fichiers volumineux (-1pt)
+- Premier scan de CodeGuard : **A (95/100)** — 1 orphelin (test-mcp.mjs), 1 haut risque (index-store.ts)
+
+### P2 — Regression Map
+- **Fichier** : `src/tools/regression.ts` (nouveau)
+- BFS depuis le fichier modifie pour trouver les cibles terminales (pages, routes API, entry points, composants)
+- Classifie les fichiers : Next.js pages/routes, NestJS controllers, entry points, composants React
+- Extrait les URLs des pages Next.js (`/app/.../page.tsx` → `/route`)
+- Tri par priorite : pages > routes API > entry points > composants
+
+### P2 — CLI etendu
+- **Fichier** : `src/cli.ts` (reecrit)
+- 2 modes : hook (guard/check, stdin JSON) et CLI (init/status/impact/health/regression, arguments)
+- 7 commandes au total : init, status, impact, health, regression, guard, check
+- Detection automatique du mode selon la commande
+- Help integre (`codeguard-cli` sans argument)
+
+### Serveur MCP mis a jour
+- **Fichier** : `src/index.ts` (modifie)
+- 9 outils exposes : impact, search, reindex, status, dependencies, guard, check, **health**, **regression_map**
+
+### Tests
+- **Fichier** : `test-mcp.mjs` (modifie)
+- 69 assertions, 22 tests, tous verts
+- Nouveaux tests : health (7 assertions), regression_map (3 assertions), list tools (9 outils)

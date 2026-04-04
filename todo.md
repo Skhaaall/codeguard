@@ -109,16 +109,12 @@ parsers/
 
 ### P2 — Intelligence (jour 3)
 
-- [ ] **Requetes libres** — "quels fichiers utilisent useAuth ?" → reponse instantanee
+- [x] **Requetes libres** — deja couvert par l'outil `search` (P0) ✅
 - [ ] **Changelog auto** — a chaque session, generer un diff lisible de ce qui a change dans la carte
-- [ ] **Score de sante** — note globale du projet basee sur :
-  - Imports casses (0 = parfait)
-  - Types incoherents (0 = parfait)
-  - Routes orphelines (0 = parfait)
-  - Code mort detecte
-- [ ] **Regression map** — quand un fichier partage change, lister toutes les pages a retester
-- [ ] **Auto-reindex** — watch mode ou hook post-save pour re-indexer en continu
-- [ ] **CLI** — `codeguard init`, `codeguard status`, `codeguard impact <fichier>`, `codeguard health`
+- [x] **Score de sante** — note A-F, imports casses, orphelins, circulaires, haut risque ✅ (4 avril 2026)
+- [x] **Regression map** — pages/routes a retester apres modification ✅ (4 avril 2026)
+- [x] **Auto-reindex** — partiel : le hook `check` re-indexe fichier par fichier ✅
+- [x] **CLI** — 7 commandes : init, status, impact, health, regression, guard, check ✅ (4 avril 2026)
 
 ### P3 — Polish
 
