@@ -4,8 +4,8 @@
  * CodeGuard Setup — installe les hooks dans le settings.json global de Claude Code.
  *
  * Usage :
- *   npx @skhaall/codeguard setup     Installer les hooks
- *   npx @skhaall/codeguard unsetup   Retirer les hooks
+ *   npx skhaall-codeguard setup     Installer les hooks
+ *   npx skhaall-codeguard unsetup   Retirer les hooks
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';

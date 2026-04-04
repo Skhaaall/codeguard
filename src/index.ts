@@ -94,7 +94,7 @@ function getIndex(): ProjectIndex {
 
 const server = new Server(
   {
-    name: '@skhaall/codeguard',
+    name: 'skhaall-codeguard',
     version: '0.1.0',
   },
   {
