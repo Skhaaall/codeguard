@@ -20,6 +20,7 @@ import { IndexStore } from './storage/index-store.js';
 import type { ProjectIndex } from './storage/index-store.js';
 import { scanProject } from './utils/scanner.js';
 import { initLogger, logger } from './utils/logger.js';
+import { parsePrismaSchema, prismaSchemaToFileNode } from './parsers/prisma-parser.js';
 import { runImpactAnalysis, formatImpactResult } from './tools/impact.js';
 import { searchIndex, formatSearchResult } from './tools/search.js';
 import { runGuard, formatGuardResult } from './tools/guard.js';
@@ -27,6 +28,7 @@ import { runCheck, formatCheckResult } from './tools/check.js';
 import { runHealth, formatHealthResult } from './tools/health.js';
 import { runRegressionMap, formatRegressionResult } from './tools/regression.js';
 import { generateGraph, formatGraphResult } from './tools/graph.js';
+import { runSchemaCheck, formatSchemaResult } from './tools/schema.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 
 // --- Configuration ---
@@ -109,7 +111,7 @@ async function indexProject(incremental = false): Promise<{ index: ProjectIndex;
     filesToParse.push(filePath);
   }
 
-  // Parser les fichiers modifies
+  // Parser les fichiers TS modifies
   const nodes = await tsParser.parseFiles(filesToParse);
   parsed = nodes.length;
 
@@ -117,9 +119,28 @@ async function indexProject(incremental = false): Promise<{ index: ProjectIndex;
     index.files[node.filePath] = node;
   }
 
+  // Parser les fichiers Prisma
+  const prismaFiles = scan.files.filter((f) => f.endsWith('.prisma'));
+  for (const prismaFile of prismaFiles) {
+    if (incremental && existing?.files[prismaFile]) {
+      try {
+        const mtime = statSync(prismaFile).mtimeMs;
+        if (mtime <= existing.files[prismaFile].parsedAt) continue;
+      } catch { /* re-parser */ }
+    }
+    try {
+      const schema = parsePrismaSchema(prismaFile);
+      const node = prismaSchemaToFileNode(schema);
+      index.files[node.filePath] = node;
+      parsed++;
+    } catch (error) {
+      logger.warn('Prisma parsing echoue', { file: prismaFile, error: String(error) });
+    }
+  }
+
   // Supprimer les fichiers qui n'existent plus
   if (incremental && existing) {
-    const currentFiles = new Set(tsFiles);
+    const currentFiles = new Set([...tsFiles, ...prismaFiles]);
     for (const filePath of Object.keys(index.files)) {
       if (!currentFiles.has(filePath)) {
         delete index.files[filePath];
@@ -304,6 +325,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: 'schema_check',
+      description:
+        'Coherence Prisma ↔ DTOs backend ↔ types frontend. Detecte les champs manquants et les enums desynchronises. A lancer apres modification du schema Prisma ou des DTOs.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {},
+      },
+    },
   ],
 }));
 
@@ -451,6 +481,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = generateGraph(index, focusFile);
         return {
           content: [{ type: 'text' as const, text: formatGraphResult(result) }],
+        };
+      }
+
+      case 'schema_check': {
+        const index = getIndex();
+        const result = runSchemaCheck(index);
+        return {
+          content: [{ type: 'text' as const, text: formatSchemaResult(result) }],
         };
       }
 

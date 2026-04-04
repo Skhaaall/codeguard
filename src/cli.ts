@@ -23,13 +23,15 @@ import { runGuard, formatGuardResult } from './tools/guard.js';
 import { runCheck, formatCheckResult } from './tools/check.js';
 import { runHealth, formatHealthResult } from './tools/health.js';
 import { runRegressionMap, formatRegressionResult } from './tools/regression.js';
+import { parsePrismaSchema, prismaSchemaToFileNode } from './parsers/prisma-parser.js';
 import { runImpactAnalysis, formatImpactResult } from './tools/impact.js';
 import { generateGraph, formatGraphResult } from './tools/graph.js';
+import { runSchemaCheck, formatSchemaResult } from './tools/schema.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 import type { ProjectIndex } from './storage/index-store.js';
 
 const COMMANDS_HOOK = ['guard', 'check'];
-const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph'];
+const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph', 'schema'];
 const ALL_COMMANDS = [...COMMANDS_HOOK, ...COMMANDS_CLI];
 
 // --- Lecture stdin ---
@@ -72,13 +74,27 @@ async function indexProject(projectRoot: string): Promise<ProjectIndex> {
   const index: ProjectIndex = {
     projectRoot,
     indexedAt: Date.now(),
-    fileCount: nodes.length,
+    fileCount: 0,
     files: {},
   };
 
   for (const node of nodes) {
     index.files[node.filePath] = node;
   }
+
+  // Parser les fichiers Prisma
+  const prismaFiles = scan.files.filter((f) => f.endsWith('.prisma'));
+  for (const prismaFile of prismaFiles) {
+    try {
+      const schema = parsePrismaSchema(prismaFile);
+      const node = prismaSchemaToFileNode(schema);
+      index.files[node.filePath] = node;
+    } catch {
+      // Prisma parsing echoue — ignorer
+    }
+  }
+
+  index.fileCount = Object.keys(index.files).length;
 
   const store = new IndexStore(projectRoot);
   store.save(index);
@@ -278,6 +294,13 @@ async function runCliMode(command: string): Promise<void> {
       console.log(formatGraphResult(result));
       break;
     }
+
+    case 'schema': {
+      const index = await ensureIndex(projectRoot);
+      const result = runSchemaCheck(index);
+      console.log(formatSchemaResult(result));
+      break;
+    }
   }
 }
 
@@ -296,6 +319,7 @@ async function main(): Promise<void> {
     console.log(`  health  [project-root]          Score de sante`);
     console.log(`  regression <fichier> [project-root] Pages a retester`);
     console.log(`  graph   [fichier] [project-root]  Diagramme Mermaid (complet ou focus)`);
+    console.log(`  schema  [project-root]          Coherence Prisma ↔ DTOs ↔ types`);
     console.log(`  guard   [project-root]          Hook pre-modification (stdin JSON)`);
     console.log(`  check   [project-root]          Hook post-modification (stdin JSON)`);
     process.exit(command ? 1 : 0);
