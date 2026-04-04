@@ -21,6 +21,8 @@ import { scanProject } from './utils/scanner.js';
 import { initLogger, logger } from './utils/logger.js';
 import { runImpactAnalysis, formatImpactResult } from './tools/impact.js';
 import { searchIndex, formatSearchResult } from './tools/search.js';
+import { runGuard, formatGuardResult } from './tools/guard.js';
+import { runCheck, formatCheckResult } from './tools/check.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 
 // --- Configuration ---
@@ -161,6 +163,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['filePath'],
       },
     },
+    {
+      name: 'guard',
+      description:
+        'Pre-change safety check — "est-ce safe de modifier ce fichier ?" Retourne les risques, les fichiers a verifier apres, et une recommandation go/no-go. A appeler AVANT toute modification.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          filePath: {
+            type: 'string',
+            description: 'Chemin du fichier qui va etre modifie (absolu ou relatif)',
+          },
+        },
+        required: ['filePath'],
+      },
+    },
+    {
+      name: 'check',
+      description:
+        'Post-change coherence check — re-indexe le fichier modifie, compare avec l\'ancien etat, detecte les exports supprimes, imports casses et types incoherents. A appeler APRES chaque modification.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          filePath: {
+            type: 'string',
+            description: 'Chemin du fichier qui vient d\'etre modifie (absolu ou relatif)',
+          },
+        },
+        required: ['filePath'],
+      },
+    },
   ],
 }));
 
@@ -255,6 +287,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               ].join('\n'),
             },
           ],
+        };
+      }
+
+      case 'guard': {
+        const index = getIndex();
+        const filePath = resolveFilePath(args?.filePath as string);
+        const result = runGuard(index, filePath);
+        return {
+          content: [{ type: 'text' as const, text: formatGuardResult(result) }],
+        };
+      }
+
+      case 'check': {
+        const index = getIndex();
+        const filePath = resolveFilePath(args?.filePath as string);
+        const result = await runCheck(index, filePath);
+        // Sauvegarder l'index mis a jour
+        store.save(index);
+        return {
+          content: [{ type: 'text' as const, text: formatCheckResult(result) }],
         };
       }
 

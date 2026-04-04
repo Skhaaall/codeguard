@@ -114,32 +114,44 @@ export class DependencyGraph {
 
 /**
  * Resout un chemin d'import relatif vers un chemin absolu.
- * Essaie les extensions courantes (.ts, .tsx, /index.ts, etc.)
+ * Gere la convention ESM (import from './foo.js' → fichier reel foo.ts).
  */
 function resolveImportPath(fromFile: string, importSource: string, index: ProjectIndex): string | null {
   const dir = dirname(fromFile);
   const base = resolve(dir, importSource);
-  const normalized = base.replace(/\\/g, '/');
 
-  // Extensions a essayer
-  const extensions = ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js'];
+  // Extensions JS que TypeScript utilise dans les imports ESM
+  const jsExtensions = ['.js', '.jsx', '.mjs', '.cjs'];
+  // Extensions a essayer pour trouver le fichier reel
+  const tsExtensions = ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js'];
 
-  // Essayer le chemin exact d'abord
-  if (index.files[normalized]) return normalized;
-
-  // Essayer avec chaque extension
-  for (const ext of extensions) {
-    const candidate = normalized + ext;
-    if (index.files[candidate]) return candidate;
+  // Construire les bases a tester :
+  // 1. Le chemin tel quel
+  // 2. Le chemin sans l'extension JS (convention ESM : import './foo.js' → fichier foo.ts)
+  const bases = [base];
+  for (const jsExt of jsExtensions) {
+    if (base.endsWith(jsExt)) {
+      bases.push(base.slice(0, -jsExt.length));
+      break;
+    }
   }
 
-  // Essayer avec les backslashes (Windows)
-  const winNormalized = base.replace(/\//g, '\\');
-  if (index.files[winNormalized]) return winNormalized;
+  for (const b of bases) {
+    // Essayer avec les forward slashes (Unix / normalized)
+    const fwd = b.replace(/\\/g, '/');
+    if (index.files[fwd]) return fwd;
+    for (const ext of tsExtensions) {
+      const candidate = fwd + ext;
+      if (index.files[candidate]) return candidate;
+    }
 
-  for (const ext of extensions) {
-    const candidate = winNormalized + ext;
-    if (index.files[candidate]) return candidate;
+    // Essayer avec les backslashes (Windows)
+    const win = b.replace(/\//g, '\\');
+    if (index.files[win]) return win;
+    for (const ext of tsExtensions) {
+      const candidate = win + ext;
+      if (index.files[candidate]) return candidate;
+    }
   }
 
   return null;

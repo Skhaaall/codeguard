@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:/Users/33782/Desktop/dev/codeguard/dist/cli.js guard",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:/Users/33782/Desktop/dev/codeguard/dist/cli.js check",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

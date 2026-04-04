@@ -5,12 +5,15 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "codeguard": "dist/index.js"
+    "codeguard": "dist/index.js",
+    "codeguard-cli": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
+    "guard": "node dist/cli.js guard",
+    "check": "node dist/cli.js check",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },
