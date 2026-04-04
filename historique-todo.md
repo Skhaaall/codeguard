@@ -117,3 +117,45 @@
 - **Fichier** : `test-mcp.mjs` (modifie)
 - 69 assertions, 22 tests, tous verts
 - Nouveaux tests : health (7 assertions), regression_map (3 assertions), list tools (9 outils)
+
+---
+
+## Session 5 — 4 avril 2026 (commit `13563c3`)
+
+### Renommage package
+- `package.json` : `"name": "codeguard"` → `"name": "@skhaall/codeguard"` (nom pris sur npm)
+- `src/index.ts` : identifiant MCP serveur mis a jour
+- `test-mcp.mjs` : assertion mise a jour
+- Le dossier `.codeguard/` et les bins CLI restent inchanges
+
+---
+
+## Session 6 — 4 avril 2026 (commit `3141e75`)
+
+### P3 — Graphe Mermaid
+- **Fichier** : `src/tools/graph.ts` (nouveau)
+- Deux modes : complet (tout le projet) et focus (centre sur un fichier, 2 niveaux)
+- Labels courts (ex: `parsers/base-parser` au lieu du chemin complet)
+- Formes par type : losange pour les types purs, hexagone pour les routes API
+- Couleurs par categorie : bleu (parsers), vert (tools), jaune (utils/storage), violet (graph)
+- Mode focus : fichier cible en rouge, dependances + dependants a 2 niveaux
+
+### P3 — Reindex incremental
+- **Fichier** : `src/index.ts` (modifie)
+- Parametre `incremental: true` sur l'outil `reindex`
+- Compare le `mtime` du fichier avec le `parsedAt` de l'index — skip si inchange
+- Supprime les fichiers qui n'existent plus dans le projet
+- Affiche les stats : re-parses, inchanges, supprimes
+- Test : 0 re-parses / 18 inchanges quand rien n'a change (instantane)
+
+### CLI etendu
+- **Fichier** : `src/cli.ts` (modifie)
+- Nouvelle commande `graph` (complet ou focus)
+- 8 commandes au total : init, status, impact, health, regression, graph, guard, check
+
+### Serveur MCP
+- 10 outils exposes : impact, search, reindex, status, dependencies, guard, check, health, regression_map, **graph**
+
+### Tests
+- 79 assertions, 25 tests, tous verts
+- Nouveaux tests : graph complet (5), graph focus (3), reindex incremental (3), list tools 10 (2)

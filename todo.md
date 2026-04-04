@@ -118,8 +118,8 @@ parsers/
 
 ### P3 — Polish
 
-- [ ] **Visualisation** — graphe de dependances en mermaid (affichable dans une issue GitHub)
-- [ ] **Incremental** — ne re-parser que les fichiers modifies (perf sur gros projets)
+- [x] **Visualisation** — graphe Mermaid (complet + focus), couleurs par categorie ✅ (4 avril 2026)
+- [x] **Incremental** — reindex incremental, 0ms si rien n'a change ✅ (4 avril 2026)
 - [ ] **npm package** — publier pour l'utiliser sur n'importe quel projet via `npx @skhaall/codeguard`
 
 ---
