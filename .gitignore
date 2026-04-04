@@ -5,3 +5,11 @@ dist/
 .env
 .env.*
 .mcp.json
+
+# Fichiers internes (pas dans le repo public)
+.claude/settings.json
+.claude/settings.local.json
+test-mcp.mjs
+AUDIT-RESUME.md
+historique-todo.md
+MEMORY.md
