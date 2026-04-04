@@ -120,7 +120,7 @@ async function runTests() {
     assert(toolNames.includes('reindex'), 'Outil "reindex" present');
     assert(toolNames.includes('status'), 'Outil "status" present');
     assert(toolNames.includes('dependencies'), 'Outil "dependencies" present');
-    assert(tools.length === 7, `7 outils exposes (got ${tools.length})`);
+    assert(tools.length === 9, `9 outils exposes (got ${tools.length})`);
 
     // Verifier les schemas d'input
     const impactTool = tools.find((t) => t.name === 'impact');
@@ -421,21 +421,74 @@ async function runTests() {
     assert(!check2Resp?.result?.isError, 'Check logger.ts sans erreur');
     assert(check2Text.includes('Re-indexe'), 'Re-indexation mentionnee');
 
-    // --- Test 18 : Verification tools/list inclut les 7 outils ---
-    console.log('\n--- Test 18 : List Tools (avec guard + check) ---');
-    send({ jsonrpc: '2.0', id: 18, method: 'tools/list', params: {} });
+    // --- Test 18 : Health ---
+    console.log('\n--- Test 18 : Health (score de sante) ---');
+    send({
+      jsonrpc: '2.0',
+      id: 18,
+      method: 'tools/call',
+      params: { name: 'health', arguments: {} },
+    });
+
+    const healthResp = await waitForResponse();
+    const healthText = healthResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${healthText.replace(/\n/g, '\n  ')}`);
+
+    assert(!healthResp?.result?.isError, 'Health sans erreur');
+    assert(healthText.includes('Health'), 'Contient "Health"');
+    assert(/[ABCDF]/.test(healthText), 'Note affichee (A-F)');
+    assert(healthText.includes('/100'), 'Score sur 100');
+    assert(healthText.includes('Metriques'), 'Section metriques presente');
+    assert(healthText.includes('Imports casses'), 'Metrique imports casses');
+    assert(healthText.includes('Dependances circulaires'), 'Metrique dependances circulaires');
+
+    // --- Test 19 : Regression map sur base-parser.ts ---
+    console.log('\n--- Test 19 : Regression Map (base-parser.ts) ---');
+    send({
+      jsonrpc: '2.0',
+      id: 19,
+      method: 'tools/call',
+      params: { name: 'regression_map', arguments: { filePath: 'src/parsers/base-parser.ts' } },
+    });
+
+    const regResp = await waitForResponse();
+    const regText = regResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${regText.replace(/\n/g, '\n  ')}`);
+
+    assert(!regResp?.result?.isError, 'Regression map sans erreur');
+    assert(regText.includes('Regression Map'), 'Contient "Regression Map"');
+    assert(regText.includes('retester'), 'Contient "retester"');
+
+    // --- Test 20 : Regression map sur index.ts (entry point, 0 cibles) ---
+    console.log('\n--- Test 20 : Regression Map (index.ts — aucune cible) ---');
+    send({
+      jsonrpc: '2.0',
+      id: 20,
+      method: 'tools/call',
+      params: { name: 'regression_map', arguments: { filePath: 'src/index.ts' } },
+    });
+
+    const reg2Resp = await waitForResponse();
+    const reg2Text = reg2Resp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${reg2Text.replace(/\n/g, '\n  ')}`);
+
+    assert(!reg2Resp?.result?.isError, 'Regression map index.ts sans erreur');
+
+    // --- Test 21 : Verification tools/list inclut les 9 outils ---
+    console.log('\n--- Test 21 : List Tools (9 outils) ---');
+    send({ jsonrpc: '2.0', id: 21, method: 'tools/list', params: {} });
 
     const list2Resp = await waitForResponse();
     const tools2 = list2Resp?.result?.tools ?? [];
     const toolNames2 = tools2.map((t) => t.name);
     console.log(`  Outils : ${toolNames2.join(', ')}`);
 
-    assert(tools2.length === 7, `7 outils exposes (got ${tools2.length})`);
-    assert(toolNames2.includes('guard'), '"guard" present');
-    assert(toolNames2.includes('check'), '"check" present');
+    assert(tools2.length === 9, `9 outils exposes (got ${tools2.length})`);
+    assert(toolNames2.includes('health'), '"health" present');
+    assert(toolNames2.includes('regression_map'), '"regression_map" present');
 
-    // --- Test 19 : Pas de stderr (regle MCP critique) ---
-    console.log('\n--- Test 19 : Zero stderr ---');
+    // --- Test 22 : Pas de stderr (regle MCP critique) ---
+    console.log('\n--- Test 22 : Zero stderr ---');
     assert(stderrOutput.trim() === '', `Aucune sortie stderr (got ${stderrOutput.length} bytes)`);
 
     // --- Resume ---

@@ -23,6 +23,8 @@ import { runImpactAnalysis, formatImpactResult } from './tools/impact.js';
 import { searchIndex, formatSearchResult } from './tools/search.js';
 import { runGuard, formatGuardResult } from './tools/guard.js';
 import { runCheck, formatCheckResult } from './tools/check.js';
+import { runHealth, formatHealthResult } from './tools/health.js';
+import { runRegressionMap, formatRegressionResult } from './tools/regression.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 
 // --- Configuration ---
@@ -193,6 +195,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['filePath'],
       },
     },
+    {
+      name: 'health',
+      description:
+        'Score de sante global du projet — imports casses, fichiers orphelins, dependances circulaires, fichiers a haut risque. Note de A (excellent) a F (critique).',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {},
+      },
+    },
+    {
+      name: 'regression_map',
+      description:
+        'Regression map — "je modifie ce fichier, quelles pages/routes retester ?" Liste les pages, routes API et entry points impactes en cascade.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          filePath: {
+            type: 'string',
+            description: 'Chemin du fichier modifie (absolu ou relatif)',
+          },
+        },
+        required: ['filePath'],
+      },
+    },
   ],
 }));
 
@@ -307,6 +333,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         store.save(index);
         return {
           content: [{ type: 'text' as const, text: formatCheckResult(result) }],
+        };
+      }
+
+      case 'health': {
+        const index = getIndex();
+        const result = runHealth(index);
+        return {
+          content: [{ type: 'text' as const, text: formatHealthResult(result) }],
+        };
+      }
+
+      case 'regression_map': {
+        const index = getIndex();
+        const filePath = resolveFilePath(args?.filePath as string);
+        const result = runRegressionMap(index, filePath);
+        return {
+          content: [{ type: 'text' as const, text: formatRegressionResult(result) }],
         };
       }
 
