@@ -80,21 +80,24 @@ parsers/
   - Routes API affectees
   - Types qui changent de forme
   - Score de risque (low/medium/high/critical)
-- [x] **Serveur MCP** — 5 outils via stdio ✅ (4 avril 2026)
+- [x] **Serveur MCP** — 7 outils via stdio ✅ (4 avril 2026)
+- [x] **Fix resolution imports ESM** — `.js` → `.ts` (convention ESM) ✅ (4 avril 2026)
+- [x] **Tests automatises** — 58 tests MCP (test-mcp.mjs) ✅ (4 avril 2026)
 - [ ] **Integration Claude Code** — `.mcp.json`, test connexion sur un vrai projet, zero crash
 
 ### P1 — Filets de securite (jour 2)
 
-- [ ] **Pre-change guard** — AVANT toute modification, Claude interroge CodeGuard :
+- [x] **Pre-change guard** — AVANT toute modification, Claude interroge CodeGuard ✅ (4 avril 2026)
   - "Est-ce safe de modifier ce fichier ?"
   - → reponse avec la liste des risques et les fichiers a verifier apres
   - → hook PreToolUse sur Edit/Write qui interroge automatiquement
-- [ ] **Post-change check** — APRES chaque modification :
+- [x] **Post-change check** — APRES chaque modification ✅ (4 avril 2026)
   - Re-indexe le fichier modifie
   - Compare avec l'index precedent
   - Detecte les imports casses, types manquants, exports supprimes
   - Alerte immediatement si quelque chose est incoherent
   - → hook PostToolUse sur Edit/Write qui verifie automatiquement
+- [x] **CLI hooks** — point d'entree one-shot (`src/cli.ts`) + config `.claude/settings.json` ✅ (4 avril 2026)
 - [ ] **Schema sync** — coherence Prisma ↔ DTOs backend ↔ types frontend ↔ appels API :
   - Un champ ajoute dans Prisma mais absent du DTO ? → alerte
   - Un type frontend qui ne matche plus le backend ? → alerte
