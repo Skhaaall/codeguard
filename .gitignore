@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.codeguard/
+*.tsbuildinfo
+.env
+.env.*
+.mcp.json

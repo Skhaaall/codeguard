@@ -1,0 +1,35 @@
+{
+  "name": "codeguard",
+  "version": "0.1.0",
+  "description": "MCP server — carte du projet et impact analysis pour Claude Code",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "codeguard": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "code-analysis",
+    "impact-analysis"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ts-morph": "^27.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^6.0.2"
+  }
+}
