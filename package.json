@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "bin": {
     "codeguard": "dist/index.js",
-    "codeguard-cli": "dist/cli.js"
+    "codeguard-cli": "dist/cli.js",
+    "codeguard-setup": "dist/setup.js"
   },
   "scripts": {
     "build": "tsc",
