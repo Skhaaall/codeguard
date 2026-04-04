@@ -24,11 +24,12 @@ import { runCheck, formatCheckResult } from './tools/check.js';
 import { runHealth, formatHealthResult } from './tools/health.js';
 import { runRegressionMap, formatRegressionResult } from './tools/regression.js';
 import { runImpactAnalysis, formatImpactResult } from './tools/impact.js';
+import { generateGraph, formatGraphResult } from './tools/graph.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 import type { ProjectIndex } from './storage/index-store.js';
 
 const COMMANDS_HOOK = ['guard', 'check'];
-const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression'];
+const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph'];
 const ALL_COMMANDS = [...COMMANDS_HOOK, ...COMMANDS_CLI];
 
 // --- Lecture stdin ---
@@ -171,8 +172,9 @@ async function runCliMode(command: string): Promise<void> {
   // Pour impact/regression, le fichier est argv[3] et project root argv[4]
   // Pour init/status/health, project root est argv[3]
   const needsFile = command === 'impact' || command === 'regression';
-  const fileArg = needsFile ? process.argv[3] : undefined;
-  const rootArg = needsFile ? process.argv[4] : process.argv[3];
+  const optionalFile = command === 'graph';
+  const fileArg = (needsFile || optionalFile) ? process.argv[3] : undefined;
+  const rootArg = (needsFile || optionalFile) ? process.argv[4] : process.argv[3];
 
   if (needsFile && !fileArg) {
     console.error(`Usage: codeguard-cli ${command} <fichier> [project-root]`);
@@ -234,6 +236,14 @@ async function runCliMode(command: string): Promise<void> {
       console.log(formatRegressionResult(result));
       break;
     }
+
+    case 'graph': {
+      const index = await ensureIndex(projectRoot);
+      const focusFile = fileArg ? resolve(fileArg) : undefined;
+      const result = generateGraph(index, focusFile);
+      console.log(formatGraphResult(result));
+      break;
+    }
   }
 }
 
@@ -251,6 +261,7 @@ async function main(): Promise<void> {
     console.log(`  impact  <fichier> [project-root] Analyse d'impact`);
     console.log(`  health  [project-root]          Score de sante`);
     console.log(`  regression <fichier> [project-root] Pages a retester`);
+    console.log(`  graph   [fichier] [project-root]  Diagramme Mermaid (complet ou focus)`);
     console.log(`  guard   [project-root]          Hook pre-modification (stdin JSON)`);
     console.log(`  check   [project-root]          Hook post-modification (stdin JSON)`);
     process.exit(command ? 1 : 0);

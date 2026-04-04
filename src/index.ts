@@ -13,6 +13,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { resolve } from 'node:path';
+import { statSync } from 'node:fs';
 
 import { TypeScriptParser } from './parsers/typescript-parser.js';
 import { IndexStore } from './storage/index-store.js';
@@ -25,6 +26,7 @@ import { runGuard, formatGuardResult } from './tools/guard.js';
 import { runCheck, formatCheckResult } from './tools/check.js';
 import { runHealth, formatHealthResult } from './tools/health.js';
 import { runRegressionMap, formatRegressionResult } from './tools/regression.js';
+import { generateGraph, formatGraphResult } from './tools/graph.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 
 // --- Configuration ---
@@ -43,7 +45,7 @@ const tsParser = new TypeScriptParser();
 
 // --- Indexation ---
 
-async function indexProject(): Promise<ProjectIndex> {
+async function indexProject(incremental = false): Promise<{ index: ProjectIndex; stats: { total: number; parsed: number; skipped: number; removed: number } }> {
   const scan = scanProject(resolvedRoot);
   logger.info('Scan termine', {
     files: scan.files.length,
@@ -53,24 +55,63 @@ async function indexProject(): Promise<ProjectIndex> {
   });
 
   const tsFiles = scan.files.filter((f) => tsParser.canParse(f));
-  const nodes = await tsParser.parseFiles(tsFiles);
+  const existing = incremental ? store.load() : null;
+  let parsed = 0;
+  let skipped = 0;
+  let removed = 0;
 
+  // Base : index existant ou vide
   const index: ProjectIndex = {
     projectRoot: resolvedRoot,
     indexedAt: Date.now(),
-    fileCount: nodes.length,
-    files: {},
+    fileCount: 0,
+    files: existing?.files ?? {},
   };
+
+  // Determiner les fichiers a re-parser
+  const filesToParse: string[] = [];
+  for (const filePath of tsFiles) {
+    if (incremental && existing?.files[filePath]) {
+      // Verifier si le fichier a ete modifie depuis le dernier parsing
+      try {
+        const mtime = statSync(filePath).mtimeMs;
+        if (mtime <= existing.files[filePath].parsedAt) {
+          skipped++;
+          continue;
+        }
+      } catch {
+        // Fichier inaccessible — le re-parser
+      }
+    }
+    filesToParse.push(filePath);
+  }
+
+  // Parser les fichiers modifies
+  const nodes = await tsParser.parseFiles(filesToParse);
+  parsed = nodes.length;
 
   for (const node of nodes) {
     index.files[node.filePath] = node;
   }
 
+  // Supprimer les fichiers qui n'existent plus
+  if (incremental && existing) {
+    const currentFiles = new Set(tsFiles);
+    for (const filePath of Object.keys(index.files)) {
+      if (!currentFiles.has(filePath)) {
+        delete index.files[filePath];
+        removed++;
+      }
+    }
+  }
+
+  index.fileCount = Object.keys(index.files).length;
+
   store.save(index);
   currentIndex = index;
-  logger.info('Indexation complete', { fileCount: index.fileCount });
+  logger.info('Indexation complete', { fileCount: index.fileCount, parsed, skipped, removed });
 
-  return index;
+  return { index, stats: { total: tsFiles.length, parsed, skipped, removed } };
 }
 
 function getIndex(): ProjectIndex {
@@ -135,10 +176,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'reindex',
       description:
-        'Re-indexe le projet complet. A lancer au debut de la session ou apres des changements importants.',
+        'Re-indexe le projet. Par defaut complet, avec incremental=true ne re-parse que les fichiers modifies.',
       inputSchema: {
         type: 'object' as const,
-        properties: {},
+        properties: {
+          incremental: {
+            type: 'boolean',
+            description: 'Si true, ne re-parse que les fichiers modifies depuis le dernier indexage (plus rapide)',
+          },
+        },
       },
     },
     {
@@ -219,6 +265,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['filePath'],
       },
     },
+    {
+      name: 'graph',
+      description:
+        'Genere un diagramme Mermaid du graphe de dependances. Sans filePath = graphe complet, avec filePath = graphe centre sur ce fichier (2 niveaux).',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          filePath: {
+            type: 'string',
+            description: 'Fichier sur lequel centrer le graphe (optionnel — sans = graphe complet)',
+          },
+        },
+      },
+    },
   ],
 }));
 
@@ -246,17 +306,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'reindex': {
-        const index = await indexProject();
+        const incremental = args?.incremental === true;
+        const { index, stats } = await indexProject(incremental);
         const graph = DependencyGraph.fromIndex(index);
+        const mode = incremental ? 'incremental' : 'complet';
         return {
           content: [
             {
               type: 'text' as const,
               text: [
-                `Indexation terminee.`,
+                `Indexation terminee (${mode}).`,
                 `- Fichiers indexes : ${index.fileCount}`,
                 `- Noeuds dans le graphe : ${graph.getNodeCount()}`,
                 `- Aretes (dependances) : ${graph.getEdgeCount()}`,
+                ...(incremental ? [
+                  `- Re-parses : ${stats.parsed} | Inchanges : ${stats.skipped} | Supprimes : ${stats.removed}`,
+                ] : []),
                 `- Date : ${new Date(index.indexedAt).toLocaleString('fr-FR')}`,
               ].join('\n'),
             },
@@ -350,6 +415,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = runRegressionMap(index, filePath);
         return {
           content: [{ type: 'text' as const, text: formatRegressionResult(result) }],
+        };
+      }
+
+      case 'graph': {
+        const index = getIndex();
+        const focusFile = args?.filePath ? resolveFilePath(args.filePath as string) : undefined;
+        const result = generateGraph(index, focusFile);
+        return {
+          content: [{ type: 'text' as const, text: formatGraphResult(result) }],
         };
       }
 

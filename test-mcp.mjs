@@ -120,7 +120,7 @@ async function runTests() {
     assert(toolNames.includes('reindex'), 'Outil "reindex" present');
     assert(toolNames.includes('status'), 'Outil "status" present');
     assert(toolNames.includes('dependencies'), 'Outil "dependencies" present');
-    assert(tools.length === 9, `9 outils exposes (got ${tools.length})`);
+    assert(tools.length === 10, `10 outils exposes (got ${tools.length})`);
 
     // Verifier les schemas d'input
     const impactTool = tools.find((t) => t.name === 'impact');
@@ -474,21 +474,73 @@ async function runTests() {
 
     assert(!reg2Resp?.result?.isError, 'Regression map index.ts sans erreur');
 
-    // --- Test 21 : Verification tools/list inclut les 9 outils ---
-    console.log('\n--- Test 21 : List Tools (9 outils) ---');
-    send({ jsonrpc: '2.0', id: 21, method: 'tools/list', params: {} });
+    // --- Test 21 : Graph complet ---
+    console.log('\n--- Test 21 : Graph (complet) ---');
+    send({
+      jsonrpc: '2.0',
+      id: 21,
+      method: 'tools/call',
+      params: { name: 'graph', arguments: {} },
+    });
+
+    const graphResp = await waitForResponse();
+    const graphText = graphResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${graphText.split('\n').slice(0, 5).join('\n  ')}...`);
+
+    assert(!graphResp?.result?.isError, 'Graph complet sans erreur');
+    assert(graphText.includes('mermaid'), 'Contient un bloc mermaid');
+    assert(graphText.includes('graph LR'), 'Diagramme Mermaid valide');
+    assert(graphText.includes('-->'), 'Contient des aretes');
+    assert(graphText.includes('classDef'), 'Contient des styles');
+
+    // --- Test 22 : Graph focus ---
+    console.log('\n--- Test 22 : Graph (focus base-parser.ts) ---');
+    send({
+      jsonrpc: '2.0',
+      id: 22,
+      method: 'tools/call',
+      params: { name: 'graph', arguments: { filePath: 'src/parsers/base-parser.ts' } },
+    });
+
+    const graph2Resp = await waitForResponse();
+    const graph2Text = graph2Resp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${graph2Text.split('\n').slice(0, 5).join('\n  ')}...`);
+
+    assert(!graph2Resp?.result?.isError, 'Graph focus sans erreur');
+    assert(graph2Text.includes('focus'), 'Mode focus indique');
+    assert(graph2Text.includes('fill:#ff6b6b'), 'Fichier focus en rouge');
+
+    // --- Test 23 : Reindex incremental ---
+    console.log('\n--- Test 23 : Reindex incremental ---');
+    send({
+      jsonrpc: '2.0',
+      id: 23,
+      method: 'tools/call',
+      params: { name: 'reindex', arguments: { incremental: true } },
+    });
+
+    const incrResp = await waitForResponse(30000);
+    const incrText = incrResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${incrText.replace(/\n/g, '\n  ')}`);
+
+    assert(!incrResp?.result?.isError, 'Reindex incremental sans erreur');
+    assert(incrText.includes('incremental'), 'Mode incremental indique');
+    assert(incrText.includes('Inchanges'), 'Affiche les fichiers inchanges');
+
+    // --- Test 24 : Verification tools/list inclut les 10 outils ---
+    console.log('\n--- Test 24 : List Tools (10 outils) ---');
+    send({ jsonrpc: '2.0', id: 24, method: 'tools/list', params: {} });
 
     const list2Resp = await waitForResponse();
     const tools2 = list2Resp?.result?.tools ?? [];
     const toolNames2 = tools2.map((t) => t.name);
     console.log(`  Outils : ${toolNames2.join(', ')}`);
 
-    assert(tools2.length === 9, `9 outils exposes (got ${tools2.length})`);
-    assert(toolNames2.includes('health'), '"health" present');
-    assert(toolNames2.includes('regression_map'), '"regression_map" present');
+    assert(tools2.length === 10, `10 outils exposes (got ${tools2.length})`);
+    assert(toolNames2.includes('graph'), '"graph" present');
 
-    // --- Test 22 : Pas de stderr (regle MCP critique) ---
-    console.log('\n--- Test 22 : Zero stderr ---');
+    // --- Test 25 : Pas de stderr (regle MCP critique) ---
+    console.log('\n--- Test 25 : Zero stderr ---');
     assert(stderrOutput.trim() === '', `Aucune sortie stderr (got ${stderrOutput.length} bytes)`);
 
     // --- Resume ---
