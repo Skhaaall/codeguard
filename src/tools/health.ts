@@ -84,7 +84,13 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
       normalized.includes('route.ts') ||
       normalized.includes('route.js');
 
-    if (dependents.length === 0 && deps.length === 0 && !isEntryPoint) {
+    // Fichiers de test — pas du code mort
+    const isTestFile = /\.(test|spec|e2e)\.(ts|tsx|js|jsx|mjs)$/.test(normalized) ||
+      /test[-.].*\.(ts|tsx|js|jsx|mjs)$/.test(normalized) ||
+      normalized.includes('/__tests__/') ||
+      normalized.includes('/tests/');
+
+    if (dependents.length === 0 && deps.length === 0 && !isEntryPoint && !isTestFile) {
       orphanFiles++;
       issues.push({
         severity: 'warning',
@@ -99,7 +105,7 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
   // -- 3. Fichiers a haut risque --
   for (const [filePath] of files) {
     const dependents = g.getDependents(filePath);
-    if (dependents.length >= 10) {
+    if (dependents.length >= 15) {
       highRiskFiles++;
       issues.push({
         severity: 'warning',
