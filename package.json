@@ -20,6 +20,7 @@
     "start": "node dist/index.js",
     "guard": "node dist/cli.js guard",
     "check": "node dist/cli.js check",
+    "test": "node test-mcp.mjs",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
@@ -46,7 +47,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "ts-morph": "^27.0.2"
+    "ts-morph": "^27.0.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",

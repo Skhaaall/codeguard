@@ -23,6 +23,8 @@ export interface FileNode {
   types: TypeInfo[];
   /** Routes API detectees (Next.js, NestJS, FastAPI...) */
   routes: RouteInfo[];
+  /** Appels API detectes dans le code (fetch, axios, etc.) */
+  apiCalls?: ApiCallInfo[];
   /** Timestamp du dernier parsing */
   parsedAt: number;
 }
@@ -94,6 +96,17 @@ export interface RouteInfo {
   handler: string;
   /** Fichier ou la route est definie */
   filePath: string;
+  line: number;
+  /** Decorateurs d'auth detectes (ex: @UseGuards, middleware auth) */
+  authGuards?: string[];
+}
+
+export interface ApiCallInfo {
+  /** Methode HTTP (GET, POST, etc.) */
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'UNKNOWN';
+  /** URL ou pattern d'URL appelee (ex: /api/users, /api/orders/:id) */
+  url: string;
+  /** Ligne dans le fichier source */
   line: number;
 }
 

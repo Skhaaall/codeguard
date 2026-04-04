@@ -20,6 +20,8 @@ import type {
 } from './base-parser.js';
 import { detectLanguage } from './detector.js';
 import { logger } from '../utils/logger.js';
+import { extractApiCalls } from './extractors/api-calls.js';
+import { extractAuthGuards } from './extractors/auth-guards.js';
 
 export class TypeScriptParser implements BaseParser {
   readonly supportedLanguages: Language[] = ['typescript', 'javascript'];
@@ -47,6 +49,7 @@ export class TypeScriptParser implements BaseParser {
     const sourceFile = this.project.addSourceFileAtPath(filePath);
 
     try {
+      const apiCalls = extractApiCalls(sourceFile);
       const node: FileNode = {
         filePath,
         language: detectLanguage(filePath),
@@ -56,6 +59,7 @@ export class TypeScriptParser implements BaseParser {
         classes: this.extractClasses(sourceFile),
         types: this.extractTypes(sourceFile),
         routes: this.extractRoutes(sourceFile, filePath),
+        ...(apiCalls.length > 0 ? { apiCalls } : {}),
         parsedAt: Date.now(),
       };
 
@@ -406,12 +410,14 @@ export class TypeScriptParser implements BaseParser {
           const subPath = this.getDecoratorStringArg(deco) ?? '';
           const fullPath = `/${basePath}/${subPath}`.replace(/\/+/g, '/').replace(/\/$/, '') || '/';
 
+          const authGuards = extractAuthGuards(method, cls);
           routes.push({
             method: httpMethod,
             path: fullPath,
             handler: `${cls.getName()}.${method.getName()}`,
             filePath,
             line: method.getStartLineNumber(),
+            ...(authGuards.length > 0 ? { authGuards } : {}),
           });
         }
       }

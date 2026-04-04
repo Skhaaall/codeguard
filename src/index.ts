@@ -15,12 +15,10 @@ import {
 import { resolve } from 'node:path';
 import { statSync } from 'node:fs';
 
-import { TypeScriptParser } from './parsers/typescript-parser.js';
 import { IndexStore } from './storage/index-store.js';
 import type { ProjectIndex } from './storage/index-store.js';
-import { scanProject } from './utils/scanner.js';
 import { initLogger, logger } from './utils/logger.js';
-import { parsePrismaSchema, prismaSchemaToFileNode } from './parsers/prisma-parser.js';
+import { indexProject as runIndexProject } from './core/indexer.js';
 import { runImpactAnalysis, formatImpactResult } from './tools/impact.js';
 import { searchIndex, formatSearchResult } from './tools/search.js';
 import { runGuard, formatGuardResult } from './tools/guard.js';
@@ -29,6 +27,9 @@ import { runHealth, formatHealthResult } from './tools/health.js';
 import { runRegressionMap, formatRegressionResult } from './tools/regression.js';
 import { generateGraph, formatGraphResult } from './tools/graph.js';
 import { runSchemaCheck, formatSchemaResult } from './tools/schema.js';
+import { runRouteGuard, formatRouteGuardResult } from './tools/routes.js';
+import { runChangelog, formatChangelogResult } from './tools/changelog.js';
+import { TOOL_DEFINITIONS } from './tools/tool-definitions.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 
 // --- Configuration ---
@@ -54,7 +55,6 @@ logger.info('CodeGuard demarre', { projectRoot: resolvedRoot });
 let currentIndex: ProjectIndex | null = null;
 let currentGraph: DependencyGraph | null = null;
 const store = new IndexStore(resolvedRoot);
-const tsParser = new TypeScriptParser();
 
 /** Reconstruit le graphe a partir de l'index courant */
 function rebuildGraph(index: ProjectIndex): DependencyGraph {
@@ -70,93 +70,11 @@ function getGraph(): DependencyGraph {
 
 // --- Indexation ---
 
-async function indexProject(incremental = false): Promise<{ index: ProjectIndex; stats: { total: number; parsed: number; skipped: number; removed: number } }> {
-  const scan = scanProject(resolvedRoot);
-  logger.info('Scan termine', {
-    files: scan.files.length,
-    dirs: scan.scannedDirs,
-    ignored: scan.ignoredDirs,
-    duration: scan.duration,
-  });
-
-  const tsFiles = scan.files.filter((f) => tsParser.canParse(f));
-  const existing = incremental ? store.load() : null;
-  let parsed = 0;
-  let skipped = 0;
-  let removed = 0;
-
-  // Base : index existant ou vide
-  const index: ProjectIndex = {
-    projectRoot: resolvedRoot,
-    indexedAt: Date.now(),
-    fileCount: 0,
-    files: existing?.files ?? {},
-  };
-
-  // Determiner les fichiers a re-parser
-  const filesToParse: string[] = [];
-  for (const filePath of tsFiles) {
-    if (incremental && existing?.files[filePath]) {
-      // Verifier si le fichier a ete modifie depuis le dernier parsing
-      try {
-        const mtime = statSync(filePath).mtimeMs;
-        if (mtime <= existing.files[filePath].parsedAt) {
-          skipped++;
-          continue;
-        }
-      } catch {
-        // Fichier inaccessible — le re-parser
-      }
-    }
-    filesToParse.push(filePath);
-  }
-
-  // Parser les fichiers TS modifies
-  const nodes = await tsParser.parseFiles(filesToParse);
-  parsed = nodes.length;
-
-  for (const node of nodes) {
-    index.files[node.filePath] = node;
-  }
-
-  // Parser les fichiers Prisma
-  const prismaFiles = scan.files.filter((f) => f.endsWith('.prisma'));
-  for (const prismaFile of prismaFiles) {
-    if (incremental && existing?.files[prismaFile]) {
-      try {
-        const mtime = statSync(prismaFile).mtimeMs;
-        if (mtime <= existing.files[prismaFile].parsedAt) continue;
-      } catch { /* re-parser */ }
-    }
-    try {
-      const schema = parsePrismaSchema(prismaFile);
-      const node = prismaSchemaToFileNode(schema);
-      index.files[node.filePath] = node;
-      parsed++;
-    } catch (error) {
-      logger.warn('Prisma parsing echoue', { file: prismaFile, error: String(error) });
-    }
-  }
-
-  // Supprimer les fichiers qui n'existent plus
-  if (incremental && existing) {
-    const currentFiles = new Set([...tsFiles, ...prismaFiles]);
-    for (const filePath of Object.keys(index.files)) {
-      if (!currentFiles.has(filePath)) {
-        delete index.files[filePath];
-        removed++;
-      }
-    }
-  }
-
-  index.fileCount = Object.keys(index.files).length;
-
-  store.save(index);
-  currentIndex = index;
-  rebuildGraph(index);
-  logger.info('Indexation complete', { fileCount: index.fileCount, parsed, skipped, removed });
-
-  return { index, stats: { total: tsFiles.length, parsed, skipped, removed } };
+async function indexProject(incremental = false) {
+  const result = await runIndexProject(resolvedRoot, { incremental, store });
+  currentIndex = result.index;
+  rebuildGraph(result.index);
+  return result;
 }
 
 function getIndex(): ProjectIndex {
@@ -188,153 +106,7 @@ const server = new Server(
 
 // Liste des outils disponibles
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [
-    {
-      name: 'impact',
-      description:
-        'Analyse d\'impact — "je modifie ce fichier, qu\'est-ce qui casse ?" Retourne les fichiers impactes, les routes API affectees, et un score de risque.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          filePath: {
-            type: 'string',
-            description: 'Chemin du fichier a analyser (absolu ou relatif au projet)',
-          },
-        },
-        required: ['filePath'],
-      },
-    },
-    {
-      name: 'search',
-      description:
-        'Recherche dans la carte — "qui utilise cette fonction/type/hook ?" Cherche dans les imports, exports, fonctions, classes, types et routes.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          query: {
-            type: 'string',
-            description: 'Nom de la fonction, du type, du hook ou de la route a chercher',
-          },
-        },
-        required: ['query'],
-      },
-    },
-    {
-      name: 'reindex',
-      description:
-        'Re-indexe le projet. Par defaut complet, avec incremental=true ne re-parse que les fichiers modifies.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          incremental: {
-            type: 'boolean',
-            description: 'Si true, ne re-parse que les fichiers modifies depuis le dernier indexage (plus rapide)',
-          },
-        },
-      },
-    },
-    {
-      name: 'status',
-      description:
-        'Etat de l\'index : date, nombre de fichiers, fraicheur.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {},
-      },
-    },
-    {
-      name: 'dependencies',
-      description:
-        'Graphe de dependances d\'un fichier — qui il importe et qui l\'importe.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          filePath: {
-            type: 'string',
-            description: 'Chemin du fichier',
-          },
-        },
-        required: ['filePath'],
-      },
-    },
-    {
-      name: 'guard',
-      description:
-        'Pre-change safety check — "est-ce safe de modifier ce fichier ?" Retourne les risques, les fichiers a verifier apres, et une recommandation go/no-go. A appeler AVANT toute modification.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          filePath: {
-            type: 'string',
-            description: 'Chemin du fichier qui va etre modifie (absolu ou relatif)',
-          },
-        },
-        required: ['filePath'],
-      },
-    },
-    {
-      name: 'check',
-      description:
-        'Post-change coherence check — re-indexe le fichier modifie, compare avec l\'ancien etat, detecte les exports supprimes, imports casses et types incoherents. A appeler APRES chaque modification.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          filePath: {
-            type: 'string',
-            description: 'Chemin du fichier qui vient d\'etre modifie (absolu ou relatif)',
-          },
-        },
-        required: ['filePath'],
-      },
-    },
-    {
-      name: 'health',
-      description:
-        'Score de sante global du projet — imports casses, fichiers orphelins, dependances circulaires, fichiers a haut risque. Note de A (excellent) a F (critique).',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {},
-      },
-    },
-    {
-      name: 'regression_map',
-      description:
-        'Regression map — "je modifie ce fichier, quelles pages/routes retester ?" Liste les pages, routes API et entry points impactes en cascade.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          filePath: {
-            type: 'string',
-            description: 'Chemin du fichier modifie (absolu ou relatif)',
-          },
-        },
-        required: ['filePath'],
-      },
-    },
-    {
-      name: 'graph',
-      description:
-        'Genere un diagramme Mermaid du graphe de dependances. Sans filePath = graphe complet, avec filePath = graphe centre sur ce fichier (2 niveaux).',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          filePath: {
-            type: 'string',
-            description: 'Fichier sur lequel centrer le graphe (optionnel — sans = graphe complet)',
-          },
-        },
-      },
-    },
-    {
-      name: 'schema_check',
-      description:
-        'Coherence Prisma ↔ DTOs backend ↔ types frontend. Detecte les champs manquants et les enums desynchronises. A lancer apres modification du schema Prisma ou des DTOs.',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {},
-      },
-    },
-  ],
+  tools: TOOL_DEFINITIONS,
 }));
 
 // Execution des outils
@@ -489,6 +261,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = runSchemaCheck(index);
         return {
           content: [{ type: 'text' as const, text: formatSchemaResult(result) }],
+        };
+      }
+
+      case 'route_guard': {
+        const index = getIndex();
+        const result = runRouteGuard(index);
+        return {
+          content: [{ type: 'text' as const, text: formatRouteGuardResult(result) }],
+        };
+      }
+
+      case 'changelog': {
+        const index = getIndex();
+        const snapshot = store.loadSnapshot();
+        const result = runChangelog(index, snapshot);
+        return {
+          content: [{ type: 'text' as const, text: formatChangelogResult(result) }],
         };
       }
 

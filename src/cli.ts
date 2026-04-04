@@ -16,22 +16,23 @@
 
 import { resolve } from 'node:path';
 import { IndexStore } from './storage/index-store.js';
-import { TypeScriptParser } from './parsers/typescript-parser.js';
-import { scanProject } from './utils/scanner.js';
 import { initLogger, logger } from './utils/logger.js';
+import { validateHookInput } from './utils/validators.js';
+import { indexProject } from './core/indexer.js';
 import { runGuard, formatGuardResult } from './tools/guard.js';
 import { runCheck, formatCheckResult } from './tools/check.js';
 import { runHealth, formatHealthResult } from './tools/health.js';
 import { runRegressionMap, formatRegressionResult } from './tools/regression.js';
-import { parsePrismaSchema, prismaSchemaToFileNode } from './parsers/prisma-parser.js';
 import { runImpactAnalysis, formatImpactResult } from './tools/impact.js';
 import { generateGraph, formatGraphResult } from './tools/graph.js';
 import { runSchemaCheck, formatSchemaResult } from './tools/schema.js';
+import { runRouteGuard, formatRouteGuardResult } from './tools/routes.js';
+import { runChangelog, formatChangelogResult } from './tools/changelog.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 import type { ProjectIndex } from './storage/index-store.js';
 
 const COMMANDS_HOOK = ['guard', 'check'];
-const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph', 'schema'];
+const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph', 'schema', 'routes', 'changelog'];
 const ALL_COMMANDS = [...COMMANDS_HOOK, ...COMMANDS_CLI];
 
 // --- Lecture stdin ---
@@ -62,42 +63,7 @@ async function ensureIndex(projectRoot: string): Promise<ProjectIndex> {
   const store = new IndexStore(projectRoot);
   const existing = store.load();
   if (existing) return existing;
-  return indexProject(projectRoot);
-}
-
-async function indexProject(projectRoot: string): Promise<ProjectIndex> {
-  const scan = scanProject(projectRoot);
-  const parser = new TypeScriptParser();
-  const tsFiles = scan.files.filter((f) => parser.canParse(f));
-  const nodes = await parser.parseFiles(tsFiles);
-
-  const index: ProjectIndex = {
-    projectRoot,
-    indexedAt: Date.now(),
-    fileCount: 0,
-    files: {},
-  };
-
-  for (const node of nodes) {
-    index.files[node.filePath] = node;
-  }
-
-  // Parser les fichiers Prisma
-  const prismaFiles = scan.files.filter((f) => f.endsWith('.prisma'));
-  for (const prismaFile of prismaFiles) {
-    try {
-      const schema = parsePrismaSchema(prismaFile);
-      const node = prismaSchemaToFileNode(schema);
-      index.files[node.filePath] = node;
-    } catch {
-      // Prisma parsing echoue — ignorer
-    }
-  }
-
-  index.fileCount = Object.keys(index.files).length;
-
-  const store = new IndexStore(projectRoot);
-  store.save(index);
+  const { index } = await indexProject(projectRoot);
   return index;
 }
 
@@ -147,12 +113,14 @@ async function runHookMode(command: string): Promise<void> {
 
   if (stdinData.trim()) {
     try {
-      const hookInput = JSON.parse(stdinData);
-      filePath = hookInput?.tool_input?.file_path ?? '';
-      hookCwd = hookInput?.cwd ?? '';
-      if (filePath) filePath = resolve(filePath);
+      const parsed: unknown = JSON.parse(stdinData);
+      const hookInput = validateHookInput(parsed);
+      if (hookInput) {
+        filePath = hookInput.filePath;
+        hookCwd = hookInput.cwd;
+        if (filePath) filePath = resolve(filePath);
+      }
     } catch {
-      // stdin non-JSON — logger un warning si le contenu n'est pas vide
       if (stdinData.trim().length > 0) {
         logger.warn('Stdin non-JSON recu par le hook', { preview: stdinData.slice(0, 200) });
       }
@@ -237,7 +205,7 @@ async function runCliMode(command: string): Promise<void> {
   switch (command) {
     case 'init': {
       console.log(`Indexation de ${projectRoot}...`);
-      const index = await indexProject(projectRoot);
+      const { index } = await indexProject(projectRoot);
       const graph = DependencyGraph.fromIndex(index);
       console.log(`Indexation terminee.`);
       console.log(`  Fichiers : ${index.fileCount}`);
@@ -301,6 +269,26 @@ async function runCliMode(command: string): Promise<void> {
       console.log(formatSchemaResult(result));
       break;
     }
+
+    case 'routes': {
+      const index = await ensureIndex(projectRoot);
+      const result = runRouteGuard(index);
+      console.log(formatRouteGuardResult(result));
+      break;
+    }
+
+    case 'changelog': {
+      const store = new IndexStore(projectRoot);
+      const index = store.load();
+      if (!index) {
+        console.log('Aucun index. Lancez "codeguard-cli init" d\'abord.');
+        process.exit(1);
+      }
+      const snapshot = store.loadSnapshot();
+      const result = runChangelog(index, snapshot);
+      console.log(formatChangelogResult(result));
+      break;
+    }
   }
 }
 
@@ -320,6 +308,8 @@ async function main(): Promise<void> {
     console.log(`  regression <fichier> [project-root] Pages a retester`);
     console.log(`  graph   [fichier] [project-root]  Diagramme Mermaid (complet ou focus)`);
     console.log(`  schema  [project-root]          Coherence Prisma ↔ DTOs ↔ types`);
+    console.log(`  routes  [project-root]          Coherence routes frontend ↔ backend`);
+    console.log(`  changelog [project-root]        Diff depuis le dernier reindex`);
     console.log(`  guard   [project-root]          Hook pre-modification (stdin JSON)`);
     console.log(`  check   [project-root]          Hook post-modification (stdin JSON)`);
     process.exit(command ? 1 : 0);
