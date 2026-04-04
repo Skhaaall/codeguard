@@ -29,9 +29,8 @@ export class DependencyGraph {
 
     for (const [filePath, node] of Object.entries(index.files)) {
       for (const imp of node.imports) {
-        if (!imp.source.startsWith('.')) continue;
-
-        const resolvedTarget = resolveImportPath(filePath, imp.source, index.files);
+        // Imports relatifs ET aliases (pas juste les ./)
+        const resolvedTarget = resolveImportPath(filePath, imp.source, index.files, index.projectRoot);
         if (!resolvedTarget) continue;
 
         graph.addEdge(filePath, resolvedTarget, imp.name);

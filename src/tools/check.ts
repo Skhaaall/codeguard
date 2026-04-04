@@ -100,7 +100,7 @@ export async function runCheck(
 
       for (const imp of depNode.imports) {
         if (!imp.source.startsWith('.')) continue;
-        if (!importPointsTo(imp.source, filePath, depFile, updatedIndex.files)) continue;
+        if (!importPointsTo(imp.source, filePath, depFile, updatedIndex.files, updatedIndex.projectRoot)) continue;
 
         if (removedExports.includes(imp.name)) {
           brokenImports.push({ importingFile: depFile, symbolName: imp.name });
@@ -158,7 +158,7 @@ export async function runCheck(
   // -- Verifier les imports du fichier modifie (resolution complete) --
   for (const imp of newNode.imports) {
     if (imp.source.startsWith('.')) {
-      const resolved = resolveImportPath(filePath, imp.source, updatedIndex.files);
+      const resolved = resolveImportPath(filePath, imp.source, updatedIndex.files, updatedIndex.projectRoot);
       if (!resolved) {
         issues.push({
           severity: 'error',

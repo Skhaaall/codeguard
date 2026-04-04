@@ -56,7 +56,7 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
     for (const imp of node.imports) {
       if (!imp.source.startsWith('.')) continue;
 
-      const resolved = resolveImportPath(filePath, imp.source, index.files);
+      const resolved = resolveImportPath(filePath, imp.source, index.files, index.projectRoot);
       if (!resolved) {
         brokenImports++;
         issues.push({
@@ -90,7 +90,17 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
       normalized.includes('/__tests__/') ||
       normalized.includes('/tests/');
 
-    if (dependents.length === 0 && deps.length === 0 && !isEntryPoint && !isTestFile) {
+    // Fichiers de config — utilises par les frameworks, pas par le code
+    const isConfigFile = /\.(config|setup)\.(ts|js|mjs|cjs)$/.test(normalized) ||
+      normalized.endsWith('/middleware.ts') ||
+      normalized.endsWith('/middleware.js') ||
+      normalized.includes('/instrumentation.') ||
+      normalized.endsWith('postcss.config.mjs') ||
+      normalized.endsWith('.config.ts') ||
+      normalized.endsWith('.config.js') ||
+      normalized.endsWith('.config.mjs');
+
+    if (dependents.length === 0 && deps.length === 0 && !isEntryPoint && !isTestFile && !isConfigFile) {
       orphanFiles++;
       issues.push({
         severity: 'warning',
@@ -99,13 +109,26 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
         file: filePath,
       });
     }
-  }
-  penalty += orphanFiles * 2;
 
-  // -- 3. Fichiers a haut risque --
+    // Les fichiers config sont listes en info (pas de penalite, mais visibles)
+    if (dependents.length === 0 && deps.length === 0 && isConfigFile) {
+      issues.push({
+        severity: 'info',
+        category: 'Fichier config',
+        message: 'Fichier de configuration (utilise par le framework, pas importe par le code)',
+        file: filePath,
+      });
+    }
+  }
+  // Penalite attenuee sur les gros projets (1pt au lieu de 2 au-dela de 100 fichiers)
+  const orphanPenalty = files.length > 100 ? 1 : 2;
+  penalty += orphanFiles * orphanPenalty;
+
+  // -- 3. Fichiers a haut risque (seuil adaptatif : 20% du projet, minimum 10) --
+  const highRiskThreshold = Math.max(10, Math.round(files.length * 0.2));
   for (const [filePath] of files) {
     const dependents = g.getDependents(filePath);
-    if (dependents.length >= 15) {
+    if (dependents.length >= highRiskThreshold) {
       highRiskFiles++;
       issues.push({
         severity: 'warning',
