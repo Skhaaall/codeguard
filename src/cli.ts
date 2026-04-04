@@ -34,11 +34,21 @@ const ALL_COMMANDS = [...COMMANDS_HOOK, ...COMMANDS_CLI];
 
 // --- Lecture stdin ---
 
+const MAX_STDIN_BYTES = 1_048_576; // 1 Mo
+
 async function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     let data = '';
+    let truncated = false;
     process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', (chunk) => { data += chunk; });
+    process.stdin.on('data', (chunk) => {
+      if (truncated) return;
+      data += chunk;
+      if (Buffer.byteLength(data) > MAX_STDIN_BYTES) {
+        truncated = true;
+        data = '';
+      }
+    });
     process.stdin.on('end', () => resolve(data));
     setTimeout(() => resolve(data), 10000);
   });
@@ -136,6 +146,16 @@ async function runHookMode(command: string): Promise<void> {
   const projectRoot = resolve(argProjectRoot ?? (hookCwd || process.cwd()));
   initLogger(projectRoot, 'warn');
 
+  // Valider que le filePath du hook reste dans le projet
+  if (filePath) {
+    const normalizedFile = filePath.replace(/\\/g, '/').toLowerCase();
+    const normalizedRoot = projectRoot.replace(/\\/g, '/').toLowerCase();
+    if (!normalizedFile.startsWith(normalizedRoot)) {
+      filePath = ''; // Ignorer les chemins hors projet
+      logger.warn('Chemin hors du projet ignore par le hook', { filePath });
+    }
+  }
+
   if (!filePath) {
     const eventName = command === 'guard' ? 'PreToolUse' : 'PostToolUse';
     const output = {
@@ -167,6 +187,17 @@ async function runHookMode(command: string): Promise<void> {
     };
     process.stdout.write(JSON.stringify(output));
   }
+}
+
+/** Resout un chemin et verifie qu'il reste dans le projet */
+function safeResolvePath(input: string, projectRoot: string): string {
+  const resolved = resolve(input);
+  const normalizedResolved = resolved.replace(/\\/g, '/').toLowerCase();
+  const normalizedRoot = projectRoot.replace(/\\/g, '/').toLowerCase();
+  if (!normalizedResolved.startsWith(normalizedRoot)) {
+    throw new Error(`Chemin hors du projet interdit : ${input}`);
+  }
+  return resolved;
 }
 
 // --- Mode CLI (init/status/impact/health/regression) ---
@@ -219,7 +250,7 @@ async function runCliMode(command: string): Promise<void> {
 
     case 'impact': {
       const index = await ensureIndex(projectRoot);
-      const filePath = resolve(fileArg!);
+      const filePath = safeResolvePath(fileArg!, projectRoot);
       const result = runImpactAnalysis(index, filePath);
       console.log(formatImpactResult(result));
       break;
@@ -234,7 +265,7 @@ async function runCliMode(command: string): Promise<void> {
 
     case 'regression': {
       const index = await ensureIndex(projectRoot);
-      const filePath = resolve(fileArg!);
+      const filePath = safeResolvePath(fileArg!, projectRoot);
       const result = runRegressionMap(index, filePath);
       console.log(formatRegressionResult(result));
       break;
@@ -242,7 +273,7 @@ async function runCliMode(command: string): Promise<void> {
 
     case 'graph': {
       const index = await ensureIndex(projectRoot);
-      const focusFile = fileArg ? resolve(fileArg) : undefined;
+      const focusFile = fileArg ? safeResolvePath(fileArg, projectRoot) : undefined;
       const result = generateGraph(index, focusFile);
       console.log(formatGraphResult(result));
       break;

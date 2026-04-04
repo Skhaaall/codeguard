@@ -3,10 +3,12 @@
  * La carte est sauvegardee dans .codeguard/index.json a la racine du projet cible.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FileNode } from '../parsers/base-parser.js';
 import { logger } from '../utils/logger.js';
+
+const MAX_INDEX_BYTES = 52_428_800; // 50 Mo
 
 export interface ProjectIndex {
   /** Racine du projet indexe */
@@ -33,6 +35,11 @@ export class IndexStore {
     if (!existsSync(this.indexPath)) return null;
 
     try {
+      const size = statSync(this.indexPath).size;
+      if (size > MAX_INDEX_BYTES) {
+        logger.warn('Index trop volumineux, ignore', { size, maxBytes: MAX_INDEX_BYTES });
+        return null;
+      }
       const raw = readFileSync(this.indexPath, 'utf-8');
       return JSON.parse(raw) as ProjectIndex;
     } catch (error) {

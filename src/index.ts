@@ -315,7 +315,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case 'impact': {
         const index = getIndex();
-        const filePath = resolveFilePath(args?.filePath as string);
+        const filePath = resolveFilePath(requireString(args?.filePath, 'filePath'));
         const result = runImpactAnalysis(index, filePath);
         return {
           content: [{ type: 'text' as const, text: formatImpactResult(result) }],
@@ -324,7 +324,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'search': {
         const index = getIndex();
-        const result = searchIndex(index, args?.query as string);
+        const result = searchIndex(index, requireString(args?.query, 'query'));
         return {
           content: [{ type: 'text' as const, text: formatSearchResult(result) }],
         };
@@ -383,7 +383,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'dependencies': {
         getIndex();
-        const filePath = resolveFilePath(args?.filePath as string);
+        const filePath = resolveFilePath(requireString(args?.filePath, 'filePath'));
         const graph = getGraph();
         const deps = graph.getDependencies(filePath);
         const dependents = graph.getDependents(filePath);
@@ -408,7 +408,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'guard': {
         const index = getIndex();
-        const filePath = resolveFilePath(args?.filePath as string);
+        const filePath = resolveFilePath(requireString(args?.filePath, 'filePath'));
         const result = runGuard(index, filePath);
         return {
           content: [{ type: 'text' as const, text: formatGuardResult(result) }],
@@ -417,7 +417,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'check': {
         const index = getIndex();
-        const filePath = resolveFilePath(args?.filePath as string);
+        const filePath = resolveFilePath(requireString(args?.filePath, 'filePath'));
         const result = await runCheck(index, filePath);
         // Appliquer l'index mis a jour et reconstruire le graphe
         currentIndex = result.updatedIndex;
@@ -438,7 +438,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'regression_map': {
         const index = getIndex();
-        const filePath = resolveFilePath(args?.filePath as string);
+        const filePath = resolveFilePath(requireString(args?.filePath, 'filePath'));
         const result = runRegressionMap(index, filePath);
         return {
           content: [{ type: 'text' as const, text: formatRegressionResult(result) }],
@@ -447,7 +447,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'graph': {
         const index = getIndex();
-        const focusFile = args?.filePath ? resolveFilePath(args.filePath as string) : undefined;
+        const focusFile = args?.filePath ? resolveFilePath(requireString(args.filePath, 'filePath')) : undefined;
         const result = generateGraph(index, focusFile);
         return {
           content: [{ type: 'text' as const, text: formatGraphResult(result) }],
@@ -470,13 +470,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+function requireString(value: unknown, name: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`Parametre "${name}" requis (string non vide)`);
+  }
+  return value;
+}
+
 function resolveFilePath(input: string): string {
   if (!input) throw new Error('Chemin de fichier requis');
-  // Si chemin relatif, resoudre par rapport a la racine du projet
-  if (!input.startsWith('/') && !input.match(/^[A-Z]:\\/i)) {
-    return resolve(resolvedRoot, input);
+  // Resoudre par rapport a la racine du projet
+  const resolved = input.startsWith('/') || input.match(/^[A-Z]:\\/i)
+    ? resolve(input)
+    : resolve(resolvedRoot, input);
+  // Bloquer le path traversal — le chemin doit rester dans le projet
+  const normalizedResolved = resolved.replace(/\\/g, '/').toLowerCase();
+  const normalizedRoot = resolvedRoot.replace(/\\/g, '/').toLowerCase();
+  if (!normalizedResolved.startsWith(normalizedRoot)) {
+    throw new Error(`Chemin hors du projet interdit : ${input}`);
   }
-  return resolve(input);
+  return resolved;
 }
 
 // --- Demarrage ---

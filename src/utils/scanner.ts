@@ -32,6 +32,9 @@ export function scanProject(projectRoot: string): ScanResult {
     scannedDirs++;
 
     for (const entry of entries) {
+      // Ignorer les liens symboliques (risque de traversee hors projet)
+      if (entry.isSymbolicLink()) continue;
+
       const fullPath = join(dir, entry.name);
 
       if (entry.isDirectory()) {
