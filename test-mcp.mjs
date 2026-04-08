@@ -99,7 +99,7 @@ async function runTests() {
 
     const initResp = await waitForResponse();
     assert(initResp?.result?.serverInfo?.name === 'skhaall-codeguard', 'Serveur identifie comme "skhaall-codeguard"');
-    assert(initResp?.result?.serverInfo?.version === '0.1.0', 'Version 0.1.0');
+    assert(initResp?.result?.serverInfo?.version === '0.2.0', 'Version 0.2.0');
     assert(initResp?.result?.capabilities?.tools !== undefined, 'Capabilities "tools" presentes');
 
     // Notification initialized
@@ -120,7 +120,7 @@ async function runTests() {
     assert(toolNames.includes('reindex'), 'Outil "reindex" present');
     assert(toolNames.includes('status'), 'Outil "status" present');
     assert(toolNames.includes('dependencies'), 'Outil "dependencies" present');
-    assert(tools.length === 13, `13 outils exposes (got ${tools.length})`);
+    assert(tools.length === 15, `15 outils exposes (got ${tools.length})`);
 
     // Verifier les schemas d'input
     const impactTool = tools.find((t) => t.name === 'impact');
@@ -527,20 +527,139 @@ async function runTests() {
     assert(incrText.includes('incremental'), 'Mode incremental indique');
     assert(incrText.includes('Inchanges'), 'Affiche les fichiers inchanges');
 
-    // --- Test 24 : Verification tools/list inclut les 10 outils ---
-    console.log('\n--- Test 24 : List Tools (10 outils) ---');
-    send({ jsonrpc: '2.0', id: 24, method: 'tools/list', params: {} });
+    // --- Test 24 : Schema check ---
+    console.log('\n--- Test 24 : Schema Check ---');
+    send({
+      jsonrpc: '2.0',
+      id: 24,
+      method: 'tools/call',
+      params: { name: 'schema_check', arguments: {} },
+    });
+
+    const schemaResp = await waitForResponse();
+    const schemaText = schemaResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${schemaText.split('\n').slice(0, 3).join('\n  ')}...`);
+
+    assert(!schemaResp?.result?.isError, 'Schema check sans erreur');
+    assert(schemaText.includes('Schema') || schemaText.includes('Prisma') || schemaText.includes('Aucun'), 'Contient un resultat schema');
+
+    // --- Test 25 : Route guard ---
+    console.log('\n--- Test 25 : Route Guard ---');
+    send({
+      jsonrpc: '2.0',
+      id: 25,
+      method: 'tools/call',
+      params: { name: 'route_guard', arguments: {} },
+    });
+
+    const routeResp = await waitForResponse();
+    const routeText = routeResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${routeText.split('\n').slice(0, 3).join('\n  ')}...`);
+
+    assert(!routeResp?.result?.isError, 'Route guard sans erreur');
+
+    // --- Test 26 : Changelog ---
+    console.log('\n--- Test 26 : Changelog ---');
+    send({
+      jsonrpc: '2.0',
+      id: 26,
+      method: 'tools/call',
+      params: { name: 'changelog', arguments: {} },
+    });
+
+    const changelogResp = await waitForResponse();
+    const changelogText = changelogResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${changelogText.split('\n').slice(0, 3).join('\n  ')}...`);
+
+    assert(!changelogResp?.result?.isError, 'Changelog sans erreur');
+
+    // --- Test 27 : Whatsnew ---
+    console.log('\n--- Test 27 : Whatsnew ---');
+    send({
+      jsonrpc: '2.0',
+      id: 27,
+      method: 'tools/call',
+      params: { name: 'whatsnew', arguments: { since: '7 days ago' } },
+    });
+
+    const whatsnewResp = await waitForResponse();
+    const whatsnewText = whatsnewResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${whatsnewText.split('\n').slice(0, 5).join('\n  ')}...`);
+
+    assert(!whatsnewResp?.result?.isError, 'Whatsnew sans erreur');
+    assert(whatsnewText.includes('Quoi de neuf'), 'Contient "Quoi de neuf"');
+    assert(whatsnewText.includes('fichier'), 'Affiche des fichiers');
+
+    // --- Test 28 : Silent catch ---
+    console.log('\n--- Test 28 : Silent Catch ---');
+    send({
+      jsonrpc: '2.0',
+      id: 28,
+      method: 'tools/call',
+      params: { name: 'silent_catch', arguments: { severity: 'all' } },
+    });
+
+    const silentResp = await waitForResponse(30000);
+    const silentText = silentResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${silentText.split('\n').slice(0, 5).join('\n  ')}...`);
+
+    assert(!silentResp?.result?.isError, 'Silent catch sans erreur');
+    assert(silentText.includes('Silent Catch'), 'Contient "Silent Catch"');
+    assert(silentText.includes('Catches analyses'), 'Affiche le nombre de catches analyses');
+
+    // --- Test 29 : Silent catch (filtre critical) ---
+    console.log('\n--- Test 29 : Silent Catch (filtre critical) ---');
+    send({
+      jsonrpc: '2.0',
+      id: 29,
+      method: 'tools/call',
+      params: { name: 'silent_catch', arguments: { severity: 'critical' } },
+    });
+
+    const silent2Resp = await waitForResponse(30000);
+    const silent2Text = silent2Resp?.result?.content?.[0]?.text ?? '';
+
+    assert(!silent2Resp?.result?.isError, 'Silent catch critical sans erreur');
+    // Avec filtre critical, on ne doit avoir que des criticals ou aucun
+    const hasHigh = silent2Text.includes('| HIGH |');
+    const hasMedium = silent2Text.includes('| MEDIUM |');
+    assert(!hasHigh && !hasMedium, 'Filtre critical exclut high et medium');
+
+    // --- Test 30 : Guard enrichi (historique git + couverture tests) ---
+    console.log('\n--- Test 30 : Guard enrichi (historique + tests) ---');
+    send({
+      jsonrpc: '2.0',
+      id: 30,
+      method: 'tools/call',
+      params: { name: 'guard', arguments: { filePath: 'src/tools/guard.ts' } },
+    });
+
+    const guard3Resp = await waitForResponse();
+    const guard3Text = guard3Resp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${guard3Text.split('\n').slice(0, 10).join('\n  ')}...`);
+
+    assert(!guard3Resp?.result?.isError, 'Guard enrichi sans erreur');
+    assert(guard3Text.includes('Historique recent'), 'Section historique git presente');
+    assert(guard3Text.includes('Couverture tests'), 'Section couverture tests presente');
+    assert(guard3Text.includes('auteur'), 'Auteur affiche dans l\'historique');
+
+    // --- Test 31 : Verification tools/list inclut les 15 outils ---
+    console.log('\n--- Test 31 : List Tools (15 outils) ---');
+    send({ jsonrpc: '2.0', id: 31, method: 'tools/list', params: {} });
 
     const list2Resp = await waitForResponse();
     const tools2 = list2Resp?.result?.tools ?? [];
     const toolNames2 = tools2.map((t) => t.name);
     console.log(`  Outils : ${toolNames2.join(', ')}`);
 
-    assert(tools2.length === 13, `13 outils exposes (got ${tools2.length})`);
-    assert(toolNames2.includes('graph'), '"graph" present');
+    assert(tools2.length === 15, `15 outils exposes (got ${tools2.length})`);
+    assert(toolNames2.includes('whatsnew'), '"whatsnew" present');
+    assert(toolNames2.includes('silent_catch'), '"silent_catch" present');
+    assert(toolNames2.includes('route_guard'), '"route_guard" present');
+    assert(toolNames2.includes('changelog'), '"changelog" present');
 
-    // --- Test 25 : Pas de stderr (regle MCP critique) ---
-    console.log('\n--- Test 25 : Zero stderr ---');
+    // --- Test 32 : Pas de stderr (regle MCP critique) ---
+    console.log('\n--- Test 32 : Zero stderr ---');
     assert(stderrOutput.trim() === '', `Aucune sortie stderr (got ${stderrOutput.length} bytes)`);
 
     // --- Resume ---
