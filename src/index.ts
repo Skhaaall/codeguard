@@ -29,6 +29,8 @@ import { generateGraph, formatGraphResult } from './tools/graph.js';
 import { runSchemaCheck, formatSchemaResult } from './tools/schema.js';
 import { runRouteGuard, formatRouteGuardResult } from './tools/routes.js';
 import { runChangelog, formatChangelogResult } from './tools/changelog.js';
+import { runWhatsnew, formatWhatsnewResult } from './tools/whatsnew.js';
+import { runSilentCatch, formatSilentCatchResult } from './tools/silent-catch.js';
 import { TOOL_DEFINITIONS } from './tools/tool-definitions.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 
@@ -269,6 +271,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = runRouteGuard(index);
         return {
           content: [{ type: 'text' as const, text: formatRouteGuardResult(result) }],
+        };
+      }
+
+      case 'silent_catch': {
+        const severity = (args?.severity as string) ?? 'all';
+        const result = await runSilentCatch(resolvedRoot, severity);
+        return {
+          content: [{ type: 'text' as const, text: formatSilentCatchResult(result) }],
+        };
+      }
+
+      case 'whatsnew': {
+        const index = getIndex();
+        const snapshot = store.loadSnapshot();
+        const since = args?.since as string | undefined;
+        const result = runWhatsnew(index, snapshot, since);
+        return {
+          content: [{ type: 'text' as const, text: formatWhatsnewResult(result) }],
         };
       }
 

@@ -1,19 +1,27 @@
-# @skhaall/codeguard
+# CodeGuard
 
-Serveur MCP qui analyse le code TypeScript/Prisma d'un projet, construit un graphe de dependances, et protege contre les modifications dangereuses.
+Serveur MCP qui analyse le code TypeScript/Prisma d'un projet, construit un graphe de dependances, et protege contre les modifications dangereuses et les regressions silencieuses.
 
-**Ecosysteme** : TypeScript, JavaScript, Prisma (support Python/Go/Rust prevu via tree-sitter en v0.2)
+**Ecosysteme** : TypeScript, JavaScript, Prisma
 
 ## Ce que ca fait
 
+### Protection en temps reel (hooks automatiques)
+- **Guard** — avant chaque modification : risques, historique git, fonctions modifiees recemment, couverture tests, hotspot detection
+- **Check** — apres chaque modification : imports casses, signatures changees, code mort, incoherence de patterns
+
+### Analyse du projet
 - **Impact analysis** — "je modifie ce fichier, qu'est-ce qui casse ?"
-- **Guard** — "est-ce safe de modifier ce fichier ?" (pre-change, bloque si risque critique)
-- **Check** — detecte les imports casses apres modification (post-change)
 - **Health** — score de sante global du projet (A-F, scoring adaptatif)
 - **Schema check** — coherence Prisma ↔ DTOs backend ↔ types frontend
+- **Route guard** — coherence routes frontend ↔ backend
 - **Regression map** — quelles pages/routes retester apres un changement
 - **Graph** — diagramme Mermaid du graphe de dependances
 - **Search** — "qui utilise cette fonction/type/hook ?"
+
+### Detection de problemes
+- **Whatsnew** — resume des changements depuis le dernier reindex (debut de session)
+- **Silent catch** — detection des catches silencieux (catch vides, return sans log, setState default)
 
 ## Prerequis
 
@@ -76,23 +84,31 @@ codeguard-cli impact <fichier> [project-root]  # Analyse d'impact
 codeguard-cli regression <fichier> [project-root]  # Pages a retester
 codeguard-cli graph [fichier] [project-root]   # Diagramme Mermaid
 codeguard-cli schema [project-root]            # Coherence Prisma ↔ TS
+codeguard-cli routes [project-root]            # Coherence routes F↔B
+codeguard-cli whatsnew [since]                 # Changements recents
+codeguard-cli silent_catch [severity]          # Catches silencieux
+codeguard-cli changelog [project-root]         # Diff depuis le snapshot
 ```
 
-## Outils MCP (11)
+## Outils MCP (15)
 
 | Outil | Description | Quand |
 |---|---|---|
 | `impact` | Fichiers impactes si on modifie un fichier | Avant modification |
-| `guard` | Risques, fichiers a verifier, recommandation go/no-go | Avant modification |
-| `check` | Imports casses, exports supprimes, types changes | Apres modification |
+| `guard` | Risques, historique git, hotspot, couverture tests, go/no-go | Avant modification |
+| `check` | Imports casses, signatures changees, code mort, patterns | Apres modification |
 | `health` | Score A-F, imports casses, cycles, orphelins | A la demande |
 | `schema_check` | Coherence Prisma ↔ DTOs ↔ types frontend | Apres modif schema |
+| `route_guard` | Coherence routes frontend ↔ backend | A la demande |
 | `search` | Recherche fonctions, types, hooks, routes | A la demande |
 | `dependencies` | Graphe d'un fichier (importe / importe par) | A la demande |
 | `reindex` | Re-indexer le projet (complet ou incremental) | Debut de session |
 | `status` | Date, nombre de fichiers, fraicheur de l'index | A la demande |
 | `regression_map` | Pages et routes a retester apres modification | Avant deploy |
 | `graph` | Diagramme Mermaid (complet ou focus sur un fichier) | A la demande |
+| `whatsnew` | Resume des changements depuis le dernier reindex | Debut de session |
+| `silent_catch` | Detection des catches silencieux dans le projet | Audit / review |
+| `changelog` | Diff lisible entre ancien et nouvel index | A la demande |
 
 ## Langages supportes
 

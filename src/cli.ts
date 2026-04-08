@@ -14,7 +14,9 @@
  *   codeguard-cli regression <file> [project-root]
  */
 
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { IndexStore } from './storage/index-store.js';
 import { initLogger, logger } from './utils/logger.js';
 import { validateHookInput } from './utils/validators.js';
@@ -28,11 +30,13 @@ import { generateGraph, formatGraphResult } from './tools/graph.js';
 import { runSchemaCheck, formatSchemaResult } from './tools/schema.js';
 import { runRouteGuard, formatRouteGuardResult } from './tools/routes.js';
 import { runChangelog, formatChangelogResult } from './tools/changelog.js';
+import { runWhatsnew, formatWhatsnewResult } from './tools/whatsnew.js';
+import { runSilentCatch, formatSilentCatchResult } from './tools/silent-catch.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 import type { ProjectIndex } from './storage/index-store.js';
 
 const COMMANDS_HOOK = ['guard', 'check'];
-const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph', 'schema', 'routes', 'changelog'];
+const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph', 'schema', 'routes', 'changelog', 'whatsnew', 'silent_catch'];
 const ALL_COMMANDS = [...COMMANDS_HOOK, ...COMMANDS_CLI];
 
 // --- Lecture stdin ---
@@ -127,7 +131,8 @@ async function runHookMode(command: string): Promise<void> {
     }
   }
 
-  const projectRoot = resolve(argProjectRoot ?? (hookCwd || process.cwd()));
+  const candidateRoot = resolve(argProjectRoot ?? (hookCwd || process.cwd()));
+  const projectRoot = findProjectRoot(candidateRoot);
   initLogger(projectRoot, 'warn');
 
   // Valider que le filePath du hook reste dans le projet
@@ -173,6 +178,39 @@ async function runHookMode(command: string): Promise<void> {
   }
 }
 
+/**
+ * Remonte depuis un repertoire candidat jusqu'a la vraie racine du projet.
+ * Strategie : racine git d'abord (fiable pour les monorepos),
+ * puis fallback sur .codeguard/index.json en remontant.
+ */
+function findProjectRoot(candidate: string): string {
+  // 1. Racine git — la source de verite pour les monorepos
+  try {
+    const gitRoot = execSync('git rev-parse --show-toplevel', {
+      cwd: candidate,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    if (gitRoot) return resolve(gitRoot);
+  } catch {
+    // Pas un repo git — continuer
+  }
+
+  // 2. Fallback : remonter pour trouver un .codeguard/index.json
+  let search = candidate;
+  const root = resolve('/');
+  while (search !== root) {
+    if (existsSync(join(search, '.codeguard', 'index.json'))) {
+      return search;
+    }
+    const parent = resolve(search, '..');
+    if (parent === search) break;
+    search = parent;
+  }
+
+  return candidate;
+}
+
 /** Resout un chemin et verifie qu'il reste dans le projet */
 function safeResolvePath(input: string, projectRoot: string): string {
   const resolved = resolve(input);
@@ -199,7 +237,7 @@ async function runCliMode(command: string): Promise<void> {
     process.exit(1);
   }
 
-  const projectRoot = resolve(rootArg ?? process.cwd());
+  const projectRoot = findProjectRoot(resolve(rootArg ?? process.cwd()));
   initLogger(projectRoot, 'warn');
 
   switch (command) {
@@ -287,6 +325,27 @@ async function runCliMode(command: string): Promise<void> {
       const snapshot = store.loadSnapshot();
       const result = runChangelog(index, snapshot);
       console.log(formatChangelogResult(result));
+      break;
+    }
+
+    case 'whatsnew': {
+      const store = new IndexStore(projectRoot);
+      const index = store.load();
+      if (!index) {
+        console.log('Aucun index. Lancez "codeguard-cli init" d\'abord.');
+        process.exit(1);
+      }
+      const snapshot = store.loadSnapshot();
+      const since = process.argv[3];
+      const result = runWhatsnew(index, snapshot, since);
+      console.log(formatWhatsnewResult(result));
+      break;
+    }
+
+    case 'silent_catch': {
+      const severity = process.argv[3] ?? 'all';
+      const result = await runSilentCatch(projectRoot, severity);
+      console.log(formatSilentCatchResult(result));
       break;
     }
   }

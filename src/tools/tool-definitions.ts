@@ -167,6 +167,36 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'whatsnew',
+    description:
+      'Resume des changements dans le projet depuis le dernier reindex. A lancer en debut de session pour comprendre le contexte. Montre les fichiers modifies, les signatures changees, les nouvelles routes et les fichiers les plus actifs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        since: {
+          type: 'string',
+          description: 'Date ou duree (ex: "3 days ago", "2026-04-05"). Defaut: date du dernier reindex.',
+        },
+      },
+    },
+  },
+  {
+    name: 'silent_catch',
+    description:
+      'Detecte les blocs catch qui avalent les erreurs silencieusement — catch vides, return sans log, .catch(() => default). A lancer lors d\'un audit ou apres /review.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        severity: {
+          type: 'string',
+          enum: ['all', 'critical', 'high'],
+          description:
+            'Filtre par severite minimum. "critical" = catch vides uniquement. "high" = catch + return sans log. "all" = tout (defaut).',
+        },
+      },
+    },
+  },
+  {
     name: 'changelog',
     description:
       'Diff lisible entre l\'ancien et le nouvel index. Montre les fichiers, exports, routes et types ajoutes/supprimes/modifies depuis le dernier reindex.',

@@ -4,6 +4,8 @@
  * Re-parse le fichier modifie, compare avec l'ancien index, signale les problemes.
  */
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { ProjectIndex } from '../storage/index-store.js';
 import type { FileNode } from '../parsers/base-parser.js';
 import { TypeScriptParser } from '../parsers/typescript-parser.js';
@@ -26,6 +28,8 @@ export interface CheckResult {
   removedExports: string[];
   addedExports: string[];
   brokenImports: BrokenImport[];
+  /** Fonctions exportees dont la signature a change */
+  signatureChanges: SignatureChange[];
   reindexed: boolean;
   /** Index mis a jour (l'appelant doit le sauvegarder) */
   updatedIndex: ProjectIndex;
@@ -34,6 +38,14 @@ export interface CheckResult {
 export interface BrokenImport {
   importingFile: string;
   symbolName: string;
+}
+
+export interface SignatureChange {
+  functionName: string;
+  oldParams: string;
+  newParams: string;
+  /** Fichiers qui appellent cette fonction et doivent etre verifies */
+  callers: string[];
 }
 
 export async function runCheck(
@@ -76,7 +88,7 @@ export async function runCheck(
   }
 
   if (!newNode) {
-    return { filePath, issueCount: issues.length, issues, removedExports, addedExports, brokenImports, reindexed, updatedIndex };
+    return { filePath, issueCount: issues.length, issues, removedExports, addedExports, brokenImports, signatureChanges: [], reindexed, updatedIndex };
   }
 
   // -- Comparer les exports --
@@ -155,6 +167,70 @@ export async function runCheck(
     }
   }
 
+  // -- Detecter les changements de signature des fonctions exportees --
+  const signatureChanges: SignatureChange[] = [];
+
+  if (oldNode) {
+    const oldExportedFns = [
+      ...oldNode.functions.filter((f) => f.isExported),
+      ...oldNode.classes.flatMap((c) => c.methods.filter((m) => m.isExported)),
+    ];
+    const newExportedFns = [
+      ...newNode.functions.filter((f) => f.isExported),
+      ...newNode.classes.flatMap((c) => c.methods.filter((m) => m.isExported)),
+    ];
+
+    for (const oldFn of oldExportedFns) {
+      const newFn = newExportedFns.find((f) => f.name === oldFn.name);
+      if (!newFn) continue; // Fonction supprimee — deja gere par removedExports
+
+      const oldSig = formatParams(oldFn.parameters);
+      const newSig = formatParams(newFn.parameters);
+
+      if (oldSig !== newSig) {
+        // Trouver les fichiers qui appellent cette fonction
+        const graph = DependencyGraph.fromIndex(updatedIndex);
+        const dependents = graph.getDependents(filePath);
+        const callers: string[] = [];
+
+        for (const depFile of dependents) {
+          const depNode = updatedIndex.files[depFile];
+          if (!depNode) continue;
+
+          // Verifier que le fichier importe bien cette fonction
+          const importsFn = depNode.imports.some(
+            (imp) =>
+              imp.name === oldFn.name &&
+              imp.source.startsWith('.') &&
+              importPointsTo(imp.source, filePath, depFile, updatedIndex.files, updatedIndex.projectRoot),
+          );
+          if (importsFn) {
+            callers.push(depFile);
+          }
+        }
+
+        signatureChanges.push({
+          functionName: oldFn.name,
+          oldParams: `(${oldSig})`,
+          newParams: `(${newSig})`,
+          callers,
+        });
+
+        const severity: IssueSeverity =
+          newFn.parameters.length < oldFn.parameters.length ||
+          newFn.parameters.some((p, i) => !p.isOptional && (!oldFn.parameters[i] || oldFn.parameters[i].isOptional))
+            ? 'error'
+            : 'warning';
+
+        issues.push({
+          severity,
+          message: `Signature modifiee : ${oldFn.name}(${oldSig}) → ${oldFn.name}(${newSig})${callers.length > 0 ? ` — ${callers.length} appelant(s) a verifier` : ''}`,
+          file: filePath,
+        });
+      }
+    }
+  }
+
   // -- Verifier les imports du fichier modifie (resolution complete) --
   for (const imp of newNode.imports) {
     if (imp.source.startsWith('.')) {
@@ -167,6 +243,49 @@ export async function runCheck(
         });
       }
     }
+  }
+
+  // -- Detection code mort (exports sans importeur) --
+  const deadExports: string[] = [];
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  const isEntryPoint = /\/(index|main|app|server)\.(ts|tsx|js)$/.test(normalizedPath)
+    || /\.(controller|module|route)\.(ts|js)$/.test(normalizedPath);
+
+  if (!isEntryPoint && newNode.exports.length > 0) {
+    const graph = DependencyGraph.fromIndex(updatedIndex);
+
+    for (const exp of newNode.exports) {
+      // Verifier si au moins un fichier importe ce symbole depuis ce fichier
+      const dependents = graph.getDependents(filePath);
+      const hasImporter = dependents.some((depFile) => {
+        const depNode = updatedIndex.files[depFile];
+        if (!depNode) return false;
+        return depNode.imports.some(
+          (imp) =>
+            imp.name === exp.name &&
+            imp.source.startsWith('.') &&
+            importPointsTo(imp.source, filePath, depFile, updatedIndex.files, updatedIndex.projectRoot),
+        );
+      });
+
+      if (!hasImporter) {
+        deadExports.push(exp.name);
+      }
+    }
+
+    if (deadExports.length > 0) {
+      issues.push({
+        severity: 'info',
+        message: `Code mort potentiel : ${deadExports.join(', ')} — exporte(s) mais jamais importe(s).`,
+        file: filePath,
+      });
+    }
+  }
+
+  // -- Detection incoherence de patterns dans le dossier --
+  const patternIssues = detectPatternInconsistencies(filePath);
+  for (const pi of patternIssues) {
+    issues.push({ severity: 'warning', message: pi, file: filePath });
   }
 
   // -- Nouveaux exports --
@@ -185,9 +304,98 @@ export async function runCheck(
     removedExports,
     addedExports,
     brokenImports,
+    signatureChanges,
     reindexed,
     updatedIndex,
   };
+}
+
+/**
+ * Detecte les incoherences de patterns entre le fichier modifie et ses voisins de dossier.
+ * Analyse statistique : si > 70% des fichiers du dossier suivent un pattern,
+ * et le fichier modifie non, on signale.
+ * Ignore les dossiers avec < 3 fichiers .ts (pas assez representatif).
+ */
+function detectPatternInconsistencies(filePath: string): string[] {
+  const dir = dirname(filePath);
+  const issues: string[] = [];
+
+  // Lister les fichiers .ts freres (meme dossier)
+  let siblings: string[];
+  try {
+    siblings = readdirSync(dir)
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.(spec|test|e2e)\.(ts|tsx)$/.test(f));
+  } catch {
+    return [];
+  }
+
+  if (siblings.length < 3) return [];
+
+  // Lire le contenu du fichier modifie
+  let fileContent: string;
+  try {
+    fileContent = readFileSync(filePath, 'utf-8');
+  } catch {
+    return [];
+  }
+
+  // Lire le contenu des freres (cache simple)
+  const siblingContents = new Map<string, string>();
+  for (const sib of siblings) {
+    try {
+      siblingContents.set(sib, readFileSync(join(dir, sib), 'utf-8'));
+    } catch {
+      // Fichier illisible, on l'ignore
+    }
+  }
+
+  // Patterns a detecter
+  const patterns: { name: string; test: (content: string) => boolean }[] = [
+    {
+      name: 'logger.error/warn dans les catch',
+      test: (c) => /catch\s*\(/.test(c) && /logger\.(error|warn)/.test(c),
+    },
+    {
+      name: 'validation zod ou class-validator',
+      test: (c) => /from\s+['"]zod['"]/.test(c) || /from\s+['"]class-validator['"]/.test(c),
+    },
+    {
+      name: 'decorateur @Injectable()',
+      test: (c) => /@Injectable\(\)/.test(c),
+    },
+  ];
+
+  const fileName = filePath.replace(/\\/g, '/').split('/').pop() ?? '';
+
+  for (const pattern of patterns) {
+    // Compter combien de freres ont ce pattern
+    let matchCount = 0;
+    for (const [, content] of siblingContents) {
+      if (pattern.test(content)) matchCount++;
+    }
+
+    const ratio = matchCount / siblingContents.size;
+    const fileHasPattern = pattern.test(fileContent);
+
+    if (ratio >= 0.7 && !fileHasPattern) {
+      issues.push(
+        `${matchCount}/${siblingContents.size} fichiers du dossier utilisent ${pattern.name} — celui-ci non.`,
+      );
+    }
+  }
+
+  return issues;
+}
+
+/** Formate les parametres d'une fonction en string lisible */
+function formatParams(params: { name: string; type: string | null; isOptional: boolean }[]): string {
+  return params
+    .map((p) => {
+      const opt = p.isOptional ? '?' : '';
+      const type = p.type ? `: ${p.type}` : '';
+      return `${p.name}${opt}${type}`;
+    })
+    .join(', ');
 }
 
 /** Formate le resultat pour affichage MCP */
@@ -210,6 +418,23 @@ export function formatCheckResult(result: CheckResult): string {
     lines.push('### Imports casses');
     for (const bi of result.brokenImports) {
       lines.push(`- **${bi.importingFile}** importe "${bi.symbolName}" qui n'existe plus`);
+    }
+  }
+
+  if (result.signatureChanges.length > 0) {
+    lines.push('');
+    lines.push('### Signatures modifiees');
+    for (const sc of result.signatureChanges) {
+      lines.push(`/!\\ ${sc.functionName}() : signature changee`);
+      lines.push(`    Avant : ${sc.oldParams}`);
+      lines.push(`    Apres : ${sc.newParams}`);
+      if (sc.callers.length > 0) {
+        lines.push(`    Appelants a verifier :`);
+        for (const caller of sc.callers) {
+          lines.push(`    - ${caller}`);
+        }
+        lines.push(`    ⚠ REGRESSION PROBABLE — ces fichiers appellent encore avec l'ancienne signature`);
+      }
     }
   }
 

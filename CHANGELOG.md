@@ -6,7 +6,19 @@ Versioning : [Semantic Versioning](https://semver.org/lang/fr/)
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-08
+
 ### Added
+- Outil `whatsnew` — resume des changements depuis le dernier reindex (fichiers, signatures, routes, hotfiles)
+- Outil `silent_catch` — detection des catches silencieux (catch vides, return sans log, setState default, .catch(() => {}))
+- Guard enrichi : historique git par fonction (auteur, date relative, lignes +/-)
+- Guard enrichi : detection hotspot (fichier modifie >= 5 fois en 7 jours)
+- Guard enrichi : couverture tests par fonction (heuristique par nom de fichier)
+- Check enrichi : detection changement de signature + liste des appelants casses
+- Check enrichi : detection code mort (exports sans importeur)
+- Check enrichi : detection incoherence de patterns dans le dossier (logger, zod, @Injectable)
+- Utilitaires git partages (`src/utils/git.ts`) : log, diff, changed lines, diff stats, hotfiles
+- CLI : commandes `whatsnew` et `silent_catch`
 - Outil `route_guard` — coherence routes frontend ↔ backend
 - Outil `changelog` — diff lisible entre ancien et nouvel index
 - Extraction des appels API frontend (fetch, axios, custom clients)
@@ -21,6 +33,7 @@ Versioning : [Semantic Versioning](https://semver.org/lang/fr/)
 - Distinction frontend/backend dans la collecte des appels API
 
 ### Fixed
+- Resolution project root : remonte a la racine git pour les monorepos (plus de `.codeguard/` parasites dans les sous-dossiers)
 - Non-null assertion remplacee par guard clause dans changelog.ts
 
 ## [0.1.0] - 2026-04-04
