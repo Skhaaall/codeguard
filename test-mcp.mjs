@@ -120,7 +120,7 @@ async function runTests() {
     assert(toolNames.includes('reindex'), 'Outil "reindex" present');
     assert(toolNames.includes('status'), 'Outil "status" present');
     assert(toolNames.includes('dependencies'), 'Outil "dependencies" present');
-    assert(tools.length === 15, `15 outils exposes (got ${tools.length})`);
+    assert(tools.length === 16, `16 outils exposes (got ${tools.length})`);
 
     // Verifier les schemas d'input
     const impactTool = tools.find((t) => t.name === 'impact');
@@ -643,23 +643,49 @@ async function runTests() {
     assert(guard3Text.includes('Couverture tests'), 'Section couverture tests presente');
     assert(guard3Text.includes('auteur'), 'Auteur affiche dans l\'historique');
 
-    // --- Test 31 : Verification tools/list inclut les 15 outils ---
-    console.log('\n--- Test 31 : List Tools (15 outils) ---');
-    send({ jsonrpc: '2.0', id: 31, method: 'tools/list', params: {} });
+    // --- Test 31 : External map ---
+    console.log('\n--- Test 31 : External Map ---');
+    send({
+      jsonrpc: '2.0',
+      id: 31,
+      method: 'tools/call',
+      params: { name: 'external_map', arguments: {} },
+    });
+
+    const extMapResp = await waitForResponse();
+    const extMapText = extMapResp?.result?.content?.[0]?.text ?? '';
+    console.log(`  ${extMapText.split('\n').slice(0, 8).join('\n  ')}...`);
+
+    assert(!extMapResp?.result?.isError, 'External map sans erreur');
+    assert(extMapText.includes('connexions externes'), 'Titre present');
+    assert(extMapText.includes('packages'), 'Section packages presente');
+    // CodeGuard utilise ts-morph, zod, @modelcontextprotocol/sdk — ils doivent apparaitre
+    assert(extMapText.includes('ts-morph'), 'ts-morph detecte comme package externe');
+    assert(extMapText.includes('zod'), 'zod detecte comme package externe');
+
+    // --- Test 32 : External map detecte les variables d'env ---
+    console.log('\n--- Test 32 : External Map (variables env) ---');
+    // CodeGuard utilise process.env.USERPROFILE / process.env.HOME dans setup.ts
+    const hasEnvSection = extMapText.includes("d'environnement") || extMapText.includes('Variable');
+    assert(hasEnvSection, 'Section variables d\'environnement presente');
+
+    // --- Test 33 : Verification tools/list inclut les 16 outils ---
+    console.log('\n--- Test 33 : List Tools (16 outils) ---');
+    send({ jsonrpc: '2.0', id: 33, method: 'tools/list', params: {} });
 
     const list2Resp = await waitForResponse();
     const tools2 = list2Resp?.result?.tools ?? [];
     const toolNames2 = tools2.map((t) => t.name);
     console.log(`  Outils : ${toolNames2.join(', ')}`);
 
-    assert(tools2.length === 15, `15 outils exposes (got ${tools2.length})`);
+    assert(tools2.length === 16, `16 outils exposes (got ${tools2.length})`);
     assert(toolNames2.includes('whatsnew'), '"whatsnew" present');
     assert(toolNames2.includes('silent_catch'), '"silent_catch" present');
-    assert(toolNames2.includes('route_guard'), '"route_guard" present');
+    assert(toolNames2.includes('external_map'), '"external_map" present');
     assert(toolNames2.includes('changelog'), '"changelog" present');
 
-    // --- Test 32 : Pas de stderr (regle MCP critique) ---
-    console.log('\n--- Test 32 : Zero stderr ---');
+    // --- Test 34 : Pas de stderr (regle MCP critique) ---
+    console.log('\n--- Test 34 : Zero stderr ---');
     assert(stderrOutput.trim() === '', `Aucune sortie stderr (got ${stderrOutput.length} bytes)`);
 
     // --- Resume ---
