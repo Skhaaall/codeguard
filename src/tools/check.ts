@@ -365,7 +365,6 @@ function detectPatternInconsistencies(filePath: string): string[] {
     },
   ];
 
-  const fileName = filePath.replace(/\\/g, '/').split('/').pop() ?? '';
 
   for (const pattern of patterns) {
     // Compter combien de freres ont ce pattern

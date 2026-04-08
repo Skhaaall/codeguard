@@ -5,7 +5,7 @@
  */
 
 import type { ProjectIndex } from '../storage/index-store.js';
-import type { TypeInfo, PropertyInfo } from '../parsers/base-parser.js';
+import type { TypeInfo } from '../parsers/base-parser.js';
 import { toShortPath } from '../utils/path.js';
 
 export interface SchemaIssue {

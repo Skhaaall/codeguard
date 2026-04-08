@@ -3,7 +3,7 @@
  * Respecte .gitignore et les dossiers a ignorer (node_modules, .next, dist...).
  */
 
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { shouldIgnorePath, shouldIgnoreFile, isSupportedFile } from '../parsers/detector.js';
 

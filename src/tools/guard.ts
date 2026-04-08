@@ -9,7 +9,6 @@ import { join, dirname, basename } from 'node:path';
 import type { ProjectIndex } from '../storage/index-store.js';
 import { ImpactResolver } from '../graph/impact-resolver.js';
 import type { ImpactResult } from '../graph/impact-resolver.js';
-import { DependencyGraph } from '../graph/dependency-graph.js';
 import { isGitRepo, getFileLog, getChangedLines, getFileDiffStats } from '../utils/git.js';
 
 export interface GuardWarning {
@@ -68,7 +67,6 @@ export interface GuardResult {
 export function runGuard(index: ProjectIndex, filePath: string): GuardResult {
   const resolver = new ImpactResolver(index);
   const impact = resolver.resolve(filePath);
-  const graph = DependencyGraph.fromIndex(index);
   const node = index.files[filePath];
 
   const warnings: GuardWarning[] = [];

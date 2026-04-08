@@ -5,8 +5,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import type { FileNode, TypeInfo, PropertyInfo } from './base-parser.js';
-import { logger } from '../utils/logger.js';
+import type { FileNode, TypeInfo } from './base-parser.js';
 
 export interface PrismaModel {
   name: string;

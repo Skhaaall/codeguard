@@ -22,6 +22,8 @@
     "check": "node dist/cli.js check",
     "test": "node test-mcp.mjs",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -51,7 +53,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.5.2",
-    "typescript": "^6.0.2"
+    "eslint": "^10.2.0",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.1"
   }
 }

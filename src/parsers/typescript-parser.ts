@@ -4,7 +4,7 @@
  * Supporte : .ts, .tsx, .js, .jsx, .mjs, .cjs
  */
 
-import { Project, SourceFile, SyntaxKind, Node } from 'ts-morph';
+import { Project, SourceFile, Node } from 'ts-morph';
 import type {
   BaseParser,
   FileNode,

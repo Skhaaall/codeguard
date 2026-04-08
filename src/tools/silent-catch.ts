@@ -6,7 +6,7 @@
  */
 
 import { Project, SyntaxKind } from 'ts-morph';
-import type { CatchClause, Node } from 'ts-morph';
+import type { CatchClause } from 'ts-morph';
 import { scanProject } from '../utils/scanner.js';
 
 export interface SilentCatchIssue {
