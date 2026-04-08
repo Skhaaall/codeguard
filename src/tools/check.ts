@@ -48,10 +48,7 @@ export interface SignatureChange {
   callers: string[];
 }
 
-export async function runCheck(
-  index: ProjectIndex,
-  filePath: string,
-): Promise<CheckResult> {
+export async function runCheck(index: ProjectIndex, filePath: string): Promise<CheckResult> {
   // Travailler sur une copie pour ne pas muter l'original
   const updatedIndex: ProjectIndex = {
     ...index,
@@ -88,7 +85,17 @@ export async function runCheck(
   }
 
   if (!newNode) {
-    return { filePath, issueCount: issues.length, issues, removedExports, addedExports, brokenImports, signatureChanges: [], reindexed, updatedIndex };
+    return {
+      filePath,
+      issueCount: issues.length,
+      issues,
+      removedExports,
+      addedExports,
+      brokenImports,
+      signatureChanges: [],
+      reindexed,
+      updatedIndex,
+    };
   }
 
   // -- Comparer les exports --
@@ -248,8 +255,9 @@ export async function runCheck(
   // -- Detection code mort (exports sans importeur) --
   const deadExports: string[] = [];
   const normalizedPath = filePath.replace(/\\/g, '/');
-  const isEntryPoint = /\/(index|main|app|server)\.(ts|tsx|js)$/.test(normalizedPath)
-    || /\.(controller|module|route)\.(ts|js)$/.test(normalizedPath);
+  const isEntryPoint =
+    /\/(index|main|app|server)\.(ts|tsx|js)$/.test(normalizedPath) ||
+    /\.(controller|module|route)\.(ts|js)$/.test(normalizedPath);
 
   if (!isEntryPoint && newNode.exports.length > 0) {
     const graph = DependencyGraph.fromIndex(updatedIndex);
@@ -323,8 +331,7 @@ function detectPatternInconsistencies(filePath: string): string[] {
   // Lister les fichiers .ts freres (meme dossier)
   let siblings: string[];
   try {
-    siblings = readdirSync(dir)
-      .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.(spec|test|e2e)\.(ts|tsx)$/.test(f));
+    siblings = readdirSync(dir).filter((f) => /\.(ts|tsx)$/.test(f) && !/\.(spec|test|e2e)\.(ts|tsx)$/.test(f));
   } catch {
     return [];
   }
@@ -364,7 +371,6 @@ function detectPatternInconsistencies(filePath: string): string[] {
       test: (c) => /@Injectable\(\)/.test(c),
     },
   ];
-
 
   for (const pattern of patterns) {
     // Compter combien de freres ont ce pattern

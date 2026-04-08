@@ -31,9 +31,7 @@ export function formatImpactResult(result: ImpactResult): string {
   if (result.allDependents.length > result.directDependents.length) {
     lines.push('');
     lines.push('### Cascade (transitif)');
-    const indirect = result.allDependents.filter(
-      (d) => !result.directDependents.includes(d),
-    );
+    const indirect = result.allDependents.filter((d) => !result.directDependents.includes(d));
     for (const dep of indirect) {
       lines.push(`- ${dep}`);
     }

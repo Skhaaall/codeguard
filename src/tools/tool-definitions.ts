@@ -60,7 +60,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'status',
-    description: 'Etat de l\'index : date, nombre de fichiers, fraicheur.',
+    description: "Etat de l'index : date, nombre de fichiers, fraicheur.",
     inputSchema: {
       type: 'object',
       properties: {},
@@ -68,7 +68,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'dependencies',
-    description: 'Graphe de dependances d\'un fichier — qui il importe et qui l\'importe.',
+    description: "Graphe de dependances d'un fichier — qui il importe et qui l'importe.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -98,13 +98,13 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'check',
     description:
-      'Post-change coherence check — re-indexe le fichier modifie, compare avec l\'ancien etat, detecte les exports supprimes, imports casses et types incoherents. A appeler APRES chaque modification.',
+      "Post-change coherence check — re-indexe le fichier modifie, compare avec l'ancien etat, detecte les exports supprimes, imports casses et types incoherents. A appeler APRES chaque modification.",
     inputSchema: {
       type: 'object',
       properties: {
         filePath: {
           type: 'string',
-          description: 'Chemin du fichier qui vient d\'etre modifie (absolu ou relatif)',
+          description: "Chemin du fichier qui vient d'etre modifie (absolu ou relatif)",
         },
       },
       required: ['filePath'],
@@ -183,7 +183,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'silent_catch',
     description:
-      'Detecte les blocs catch qui avalent les erreurs silencieusement — catch vides, return sans log, .catch(() => default). A lancer lors d\'un audit ou apres /review.',
+      "Detecte les blocs catch qui avalent les erreurs silencieusement — catch vides, return sans log, .catch(() => default). A lancer lors d'un audit ou apres /review.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -199,7 +199,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'changelog',
     description:
-      'Diff lisible entre l\'ancien et le nouvel index. Montre les fichiers, exports, routes et types ajoutes/supprimes/modifies depuis le dernier reindex.',
+      "Diff lisible entre l'ancien et le nouvel index. Montre les fichiers, exports, routes et types ajoutes/supprimes/modifies depuis le dernier reindex.",
     inputSchema: {
       type: 'object',
       properties: {},

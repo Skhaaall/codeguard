@@ -76,7 +76,8 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
     const deps = g.getDependencies(filePath);
     const normalized = filePath.replace(/\\/g, '/');
 
-    const isEntryPoint = normalized.includes('index.ts') ||
+    const isEntryPoint =
+      normalized.includes('index.ts') ||
       normalized.includes('index.js') ||
       normalized.includes('main.ts') ||
       normalized.includes('cli.ts') ||
@@ -85,13 +86,15 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
       normalized.includes('route.js');
 
     // Fichiers de test — pas du code mort
-    const isTestFile = /\.(test|spec|e2e)\.(ts|tsx|js|jsx|mjs)$/.test(normalized) ||
+    const isTestFile =
+      /\.(test|spec|e2e)\.(ts|tsx|js|jsx|mjs)$/.test(normalized) ||
       /test[-.].*\.(ts|tsx|js|jsx|mjs)$/.test(normalized) ||
       normalized.includes('/__tests__/') ||
       normalized.includes('/tests/');
 
     // Fichiers de config — utilises par les frameworks, pas par le code
-    const isConfigFile = /\.(config|setup)\.(ts|js|mjs|cjs)$/.test(normalized) ||
+    const isConfigFile =
+      /\.(config|setup)\.(ts|js|mjs|cjs)$/.test(normalized) ||
       normalized.endsWith('/middleware.ts') ||
       normalized.endsWith('/middleware.js') ||
       normalized.includes('/instrumentation.') ||
@@ -141,7 +144,10 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
   penalty += highRiskFiles * 3;
 
   // -- 4. Dependances circulaires (Tarjan — SCC) --
-  const sccs = findStronglyConnectedComponents(g, files.map(([f]) => f));
+  const sccs = findStronglyConnectedComponents(
+    g,
+    files.map(([f]) => f),
+  );
   circularDeps = sccs.length;
   for (const scc of sccs) {
     issues.push({
@@ -178,7 +184,10 @@ export function runHealth(index: ProjectIndex, graph?: DependencyGraph): HealthR
   }
 
   return {
-    grade, score, fileCount: files.length, issues,
+    grade,
+    score,
+    fileCount: files.length,
+    issues,
     metrics: { brokenImports, orphanFiles, highRiskFiles, circularDeps, largeFiles, totalExports, totalImports },
   };
 }

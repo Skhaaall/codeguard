@@ -135,7 +135,15 @@ function parseField(line: string, lineNumber: number): PrismaField | null {
 
   // Detecter si c'est une relation (type commence par une majuscule et n'est pas un type Prisma primitif)
   const primitiveTypes = new Set([
-    'String', 'Int', 'Float', 'Boolean', 'DateTime', 'Json', 'Bytes', 'BigInt', 'Decimal',
+    'String',
+    'Int',
+    'Float',
+    'Boolean',
+    'DateTime',
+    'Json',
+    'Bytes',
+    'BigInt',
+    'Decimal',
   ]);
   const isRelation = !primitiveTypes.has(rawType) && /^[A-Z]/.test(rawType);
 
@@ -249,7 +257,7 @@ export function prismaSchemaToFileNode(schema: PrismaSchema): FileNode {
     imports: [],
     exports: types.map((t) => ({
       name: t.name,
-      kind: t.kind === 'enum' ? 'enum' as const : 'type' as const,
+      kind: t.kind === 'enum' ? ('enum' as const) : ('type' as const),
       isTypeOnly: true,
     })),
     functions: [],

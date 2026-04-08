@@ -31,12 +31,14 @@ export class TypeScriptParser implements BaseParser {
     this.project = new Project({
       tsConfigFilePath: tsConfigPath,
       skipAddingFilesFromTsConfig: true,
-      compilerOptions: tsConfigPath ? undefined : {
-        allowJs: true,
-        jsx: 4, // JsxEmit.ReactJSX
-        strict: true,
-        esModuleInterop: true,
-      },
+      compilerOptions: tsConfigPath
+        ? undefined
+        : {
+            allowJs: true,
+            jsx: 4, // JsxEmit.ReactJSX
+            strict: true,
+            esModuleInterop: true,
+          },
     });
   }
 
@@ -345,7 +347,7 @@ export class TypeScriptParser implements BaseParser {
     // Next.js exporte des fonctions nommees GET, POST, PUT, PATCH, DELETE
     for (const fn of sourceFile.getFunctions()) {
       const name = fn.getName();
-      if (name && httpMethods.includes(name as typeof httpMethods[number]) && fn.isExported()) {
+      if (name && httpMethods.includes(name as (typeof httpMethods)[number]) && fn.isExported()) {
         routes.push({
           method: name as RouteInfo['method'],
           path: this.nextPathFromFile(filePath),
@@ -361,7 +363,7 @@ export class TypeScriptParser implements BaseParser {
       if (varStatement.isExported()) {
         for (const decl of varStatement.getDeclarations()) {
           const name = decl.getName();
-          if (httpMethods.includes(name as typeof httpMethods[number])) {
+          if (httpMethods.includes(name as (typeof httpMethods)[number])) {
             routes.push({
               method: name as RouteInfo['method'],
               path: this.nextPathFromFile(filePath),

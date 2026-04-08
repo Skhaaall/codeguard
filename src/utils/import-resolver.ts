@@ -14,8 +14,8 @@ export type FileSet = { [filePath: string]: unknown };
 
 /** Un alias : pattern → liste de remplacements */
 export interface PathAlias {
-  prefix: string;      // ex: "@/"
-  targets: string[];   // ex: ["src/"]  (chemins absolus apres resolution)
+  prefix: string; // ex: "@/"
+  targets: string[]; // ex: ["src/"]  (chemins absolus apres resolution)
 }
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.mjs', '.cjs'];

@@ -210,7 +210,9 @@ export function formatRouteGuardResult(result: RouteGuardResult): string {
     return lines.join('\n');
   }
 
-  lines.push(`- Problemes : ${result.summary.total} (${result.summary.danger} critiques, ${result.summary.warn} alertes, ${result.summary.info} infos)`);
+  lines.push(
+    `- Problemes : ${result.summary.total} (${result.summary.danger} critiques, ${result.summary.warn} alertes, ${result.summary.info} infos)`,
+  );
 
   // Danger en premier
   const dangerIssues = result.issues.filter((i) => i.severity === 'danger');

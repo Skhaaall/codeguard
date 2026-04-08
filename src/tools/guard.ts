@@ -152,10 +152,7 @@ export function runGuard(index: ProjectIndex, filePath: string): GuardResult {
 
     if (recentCommits.length > 0) {
       // Fonctions du fichier pour croisement avec les lignes modifiees
-      const allFunctions = [
-        ...(node?.functions ?? []),
-        ...(node?.classes ?? []).flatMap((c) => c.methods),
-      ];
+      const allFunctions = [...(node?.functions ?? []), ...(node?.classes ?? []).flatMap((c) => c.methods)];
 
       const enrichedCommits = recentCommits.map((commit) => {
         const changedLines = getChangedLines(index.projectRoot, commit.hash, filePath);
@@ -233,10 +230,7 @@ export function runGuard(index: ProjectIndex, filePath: string): GuardResult {
  * Heuristique : une fonction est "touchee" si une ligne modifiee
  * est entre sa ligne de debut et la ligne de debut de la fonction suivante.
  */
-function findChangedFunctions(
-  functions: { name: string; line: number }[],
-  changedLines: number[],
-): string[] {
+function findChangedFunctions(functions: { name: string; line: number }[], changedLines: number[]): string[] {
   if (functions.length === 0 || changedLines.length === 0) return [];
 
   // Trier les fonctions par ligne
@@ -294,14 +288,14 @@ export function formatGuardResult(result: GuardResult): string {
   if (result.fileHistory && result.fileHistory.recentCommits.length > 0) {
     const h = result.fileHistory;
     lines.push('');
-    lines.push(`### Historique recent (${h.modificationCount30d} modif. en 30j, ${h.authors.length} auteur${h.authors.length > 1 ? 's' : ''} : ${h.authors.join(', ')})`);
+    lines.push(
+      `### Historique recent (${h.modificationCount30d} modif. en 30j, ${h.authors.length} auteur${h.authors.length > 1 ? 's' : ''} : ${h.authors.join(', ')})`,
+    );
 
     for (const commit of h.recentCommits) {
       const dateLabel = formatRelativeDate(commit.date);
       const diffLabel = formatDiffStats(commit.linesAdded, commit.linesRemoved);
-      const fns = commit.functionsChanged.length > 0
-        ? ` → ${commit.functionsChanged.join(', ')}`
-        : '';
+      const fns = commit.functionsChanged.length > 0 ? ` → ${commit.functionsChanged.join(', ')}` : '';
       lines.push(`- ${dateLabel} | ${commit.author} | (${commit.hash}) ${commit.message} ${diffLabel}${fns}`);
     }
 
@@ -321,9 +315,7 @@ export function formatGuardResult(result: GuardResult): string {
     lines.push(`### Couverture tests (${tested.length}/${result.testCoverage.length})`);
     for (const c of result.testCoverage) {
       const icon = c.testFile ? '✓' : '✗';
-      const detail = c.testFile
-        ? basename(c.testFile)
-        : 'PAS DE TEST';
+      const detail = c.testFile ? basename(c.testFile) : 'PAS DE TEST';
       lines.push(`- ${c.functionName}() → ${detail} ${icon}`);
     }
     if (untested.length > 0) {
@@ -392,10 +384,7 @@ function findTestCoverage(
   }
 
   // Toutes les fonctions (top-level + methodes de classes)
-  const allFunctions = [
-    ...node.functions,
-    ...(node.classes ?? []).flatMap((c) => c.methods),
-  ];
+  const allFunctions = [...node.functions, ...(node.classes ?? []).flatMap((c) => c.methods)];
 
   return allFunctions.map((fn) => {
     let testFile: string | null = null;

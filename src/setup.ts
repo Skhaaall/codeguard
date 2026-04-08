@@ -47,22 +47,26 @@ interface Settings {
 
 const GUARD_HOOK: HookEntry = {
   matcher: 'Edit|Write',
-  hooks: [{
-    type: 'command',
-    command: `node "${CLI_PATH}" guard`,
-    timeout: 30,
-    statusMessage: 'CodeGuard: analyse pre-modification...',
-  }],
+  hooks: [
+    {
+      type: 'command',
+      command: `node "${CLI_PATH}" guard`,
+      timeout: 30,
+      statusMessage: 'CodeGuard: analyse pre-modification...',
+    },
+  ],
 };
 
 const CHECK_HOOK: HookEntry = {
   matcher: 'Edit|Write',
-  hooks: [{
-    type: 'command',
-    command: `node "${CLI_PATH}" check`,
-    timeout: 30,
-    statusMessage: 'CodeGuard: verification post-modification...',
-  }],
+  hooks: [
+    {
+      type: 'command',
+      command: `node "${CLI_PATH}" check`,
+      timeout: 30,
+      statusMessage: 'CodeGuard: verification post-modification...',
+    },
+  ],
 };
 
 function isCodeGuardHook(entry: HookEntry): boolean {
@@ -94,7 +98,9 @@ function install(): void {
 
   // Retirer les anciens hooks CodeGuard s'ils existent
   settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter((e) => !isCodeGuardHook(e as HookEntry)) as HookEntry[];
-  settings.hooks.PostToolUse = settings.hooks.PostToolUse.filter((e) => !isCodeGuardHook(e as HookEntry)) as HookEntry[];
+  settings.hooks.PostToolUse = settings.hooks.PostToolUse.filter(
+    (e) => !isCodeGuardHook(e as HookEntry),
+  ) as HookEntry[];
 
   // Ajouter les nouveaux
   settings.hooks.PreToolUse.push(GUARD_HOOK);

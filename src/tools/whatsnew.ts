@@ -25,18 +25,11 @@ export interface WhatsnewResult {
   hotFiles: { file: string; count: number }[];
 }
 
-export function runWhatsnew(
-  index: ProjectIndex,
-  snapshot: ProjectIndex | null,
-  since?: string,
-): WhatsnewResult {
+export function runWhatsnew(index: ProjectIndex, snapshot: ProjectIndex | null, since?: string): WhatsnewResult {
   // Date de reference : parametre > date du snapshot > 7 jours par defaut
-  const sinceDate = since
-    ?? (snapshot ? new Date(snapshot.indexedAt).toISOString().slice(0, 10) : '7 days ago');
+  const sinceDate = since ?? (snapshot ? new Date(snapshot.indexedAt).toISOString().slice(0, 10) : '7 days ago');
 
-  const sinceLabel = snapshot && !since
-    ? new Date(snapshot.indexedAt).toLocaleDateString('fr-FR')
-    : sinceDate;
+  const sinceLabel = snapshot && !since ? new Date(snapshot.indexedAt).toLocaleDateString('fr-FR') : sinceDate;
 
   const result: WhatsnewResult = {
     since: sinceDate,
@@ -73,8 +66,12 @@ export function runWhatsnew(
         const oldFn = oldNode.functions.find((f) => f.name === newFn.name && f.isExported);
         if (!oldFn) continue;
 
-        const oldSig = oldFn.parameters.map((p) => `${p.name}${p.isOptional ? '?' : ''}${p.type ? ': ' + p.type : ''}`).join(', ');
-        const newSig = newFn.parameters.map((p) => `${p.name}${p.isOptional ? '?' : ''}${p.type ? ': ' + p.type : ''}`).join(', ');
+        const oldSig = oldFn.parameters
+          .map((p) => `${p.name}${p.isOptional ? '?' : ''}${p.type ? ': ' + p.type : ''}`)
+          .join(', ');
+        const newSig = newFn.parameters
+          .map((p) => `${p.name}${p.isOptional ? '?' : ''}${p.type ? ': ' + p.type : ''}`)
+          .join(', ');
 
         if (oldSig !== newSig) {
           result.signatureChanges.push({
@@ -131,7 +128,9 @@ export function formatWhatsnewResult(result: WhatsnewResult): string {
     return lines.join('\n');
   }
 
-  lines.push(`**${result.filesModified} fichier(s) modifie(s)** | ${result.filesAdded} ajoute(s) | ${result.filesDeleted} supprime(s)`);
+  lines.push(
+    `**${result.filesModified} fichier(s) modifie(s)** | ${result.filesAdded} ajoute(s) | ${result.filesDeleted} supprime(s)`,
+  );
 
   // Signatures modifiees
   if (result.signatureChanges.length > 0) {

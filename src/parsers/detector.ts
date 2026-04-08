@@ -37,12 +37,7 @@ const IGNORED_DIRS = new Set([
   'vendor',
 ]);
 
-const IGNORED_FILES = new Set([
-  'package-lock.json',
-  'yarn.lock',
-  'pnpm-lock.yaml',
-  'poetry.lock',
-]);
+const IGNORED_FILES = new Set(['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock']);
 
 export function detectLanguage(filePath: string): Language {
   const ext = getExtension(filePath);

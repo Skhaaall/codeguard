@@ -39,12 +39,7 @@ export function isGitRepo(projectRoot: string): boolean {
  * Derniers commits sur un fichier.
  * Retourne max `maxCount` commits, optionnellement filtres par date.
  */
-export function getFileLog(
-  projectRoot: string,
-  filePath: string,
-  maxCount = 10,
-  since?: string,
-): GitCommit[] {
+export function getFileLog(projectRoot: string, filePath: string, maxCount = 10, since?: string): GitCommit[] {
   try {
     const sinceArg = since ? ` --since="${since}"` : '';
     const cmd = `git log --format="%h|%ai|%an|%s" --max-count=${maxCount}${sinceArg} --follow -- "${filePath}"`;
@@ -75,11 +70,7 @@ export function getFileLog(
  * Lignes modifiees dans un commit pour un fichier.
  * Parse les @@ hunks du diff pour extraire les numeros de lignes touchees.
  */
-export function getChangedLines(
-  projectRoot: string,
-  commitHash: string,
-  filePath: string,
-): number[] {
+export function getChangedLines(projectRoot: string, commitHash: string, filePath: string): number[] {
   try {
     const cmd = `git diff ${commitHash}~1..${commitHash} -- "${filePath}"`;
 
@@ -114,11 +105,7 @@ export function getChangedLines(
  * Lignes ajoutees/supprimees dans un commit pour un fichier.
  * Utilise --numstat pour obtenir les compteurs.
  */
-export function getFileDiffStats(
-  projectRoot: string,
-  commitHash: string,
-  filePath: string,
-): FileDiffStats {
+export function getFileDiffStats(projectRoot: string, commitHash: string, filePath: string): FileDiffStats {
   try {
     const cmd = `git diff --numstat ${commitHash}~1..${commitHash} -- "${filePath}"`;
 
@@ -145,10 +132,7 @@ export function getFileDiffStats(
  * Fichiers modifies depuis une date.
  * Retourne la liste avec le statut (A = ajoute, M = modifie, D = supprime).
  */
-export function getChangedFilesSince(
-  projectRoot: string,
-  since: string,
-): { file: string; status: 'A' | 'M' | 'D' }[] {
+export function getChangedFilesSince(projectRoot: string, since: string): { file: string; status: 'A' | 'M' | 'D' }[] {
   try {
     const cmd = `git log --name-status --since="${since}" --format=""`;
 
@@ -189,11 +173,7 @@ export function getChangedFilesSince(
  * Fichiers les plus modifies depuis une date (hotfiles).
  * Retourne les top N fichiers tries par nombre de commits.
  */
-export function getHotFiles(
-  projectRoot: string,
-  since: string,
-  top = 5,
-): { file: string; count: number }[] {
+export function getHotFiles(projectRoot: string, since: string, top = 5): { file: string; count: number }[] {
   try {
     const cmd = `git log --name-only --since="${since}" --format=""`;
 

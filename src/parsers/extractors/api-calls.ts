@@ -106,7 +106,7 @@ function inferFetchMethod(callExpr: CallExpression): ApiCallInfo['method'] {
 
   const text = initializer.getText().replace(/['"]/g, '').toUpperCase();
   const valid = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
-  if (valid.includes(text as typeof valid[number])) {
+  if (valid.includes(text as (typeof valid)[number])) {
     return text as ApiCallInfo['method'];
   }
 

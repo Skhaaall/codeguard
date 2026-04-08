@@ -110,16 +110,7 @@ export interface ApiCallInfo {
   line: number;
 }
 
-export type Language =
-  | 'typescript'
-  | 'javascript'
-  | 'python'
-  | 'go'
-  | 'rust'
-  | 'java'
-  | 'prisma'
-  | 'sql'
-  | 'unknown';
+export type Language = 'typescript' | 'javascript' | 'python' | 'go' | 'rust' | 'java' | 'prisma' | 'sql' | 'unknown';
 
 // --- Interface du parser ---
 

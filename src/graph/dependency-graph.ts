@@ -11,7 +11,7 @@ import { resolveImportPath } from '../utils/import-resolver.js';
 
 export interface DependencyEdge {
   from: string; // fichier qui importe
-  to: string;   // fichier importe
+  to: string; // fichier importe
   imports: string[]; // noms importes
 }
 

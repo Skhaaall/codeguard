@@ -18,10 +18,7 @@ export interface GraphResult {
   mode: 'full' | 'focus';
 }
 
-export function generateGraph(
-  index: ProjectIndex,
-  focusFile?: string,
-): GraphResult {
+export function generateGraph(index: ProjectIndex, focusFile?: string): GraphResult {
   const graph = DependencyGraph.fromIndex(index);
   const edges = graph.getEdges();
 
@@ -82,11 +79,7 @@ function generateFullGraph(
 }
 
 /** Graphe centre sur un fichier (dependances + dependants a 2 niveaux) */
-function generateFocusGraph(
-  graph: DependencyGraph,
-  index: ProjectIndex,
-  focusFile: string,
-): GraphResult {
+function generateFocusGraph(graph: DependencyGraph, index: ProjectIndex, focusFile: string): GraphResult {
   const lines: string[] = ['graph LR'];
   const nodeIds = new Map<string, string>();
   let nodeCounter = 0;
@@ -164,7 +157,11 @@ function shortLabel(filePath: string): string {
   if (srcIdx !== -1) {
     return normalized.slice(srcIdx + 5).replace(/\.(ts|tsx|js|jsx)$/, '');
   }
-  return normalized.split('/').slice(-2).join('/').replace(/\.(ts|tsx|js|jsx)$/, '');
+  return normalized
+    .split('/')
+    .slice(-2)
+    .join('/')
+    .replace(/\.(ts|tsx|js|jsx)$/, '');
 }
 
 /** Forme du noeud selon le type de fichier */
@@ -187,11 +184,7 @@ function getNodeShape(filePath: string, index: ProjectIndex): [string, string] {
 }
 
 /** Genere les styles CSS par categorie de fichier */
-function generateStyles(
-  files: Set<string>,
-  index: ProjectIndex,
-  nodeIds: Map<string, string>,
-): string[] {
+function generateStyles(files: Set<string>, index: ProjectIndex, nodeIds: Map<string, string>): string[] {
   const styles: string[] = [];
   const parsers: string[] = [];
   const tools: string[] = [];

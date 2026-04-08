@@ -1,0 +1,9 @@
+# CodeGuard — responsables du code
+
+# Tout le projet
+* @Skhaaall
+
+# Fichiers sensibles — review obligatoire
+SECURITY.md @Skhaaall
+.github/ @Skhaaall
+src/utils/validators.ts @Skhaaall

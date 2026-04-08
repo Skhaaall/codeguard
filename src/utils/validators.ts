@@ -8,12 +8,16 @@ import { z } from 'zod';
 
 // --- Validation stdin hook (cli.ts) ---
 
-export const HookInputSchema = z.object({
-  tool_input: z.object({
-    file_path: z.string().optional(),
-  }).optional(),
-  cwd: z.string().optional(),
-}).passthrough();
+export const HookInputSchema = z
+  .object({
+    tool_input: z
+      .object({
+        file_path: z.string().optional(),
+      })
+      .optional(),
+    cwd: z.string().optional(),
+  })
+  .passthrough();
 
 export type ValidatedHookInput = {
   filePath: string;
@@ -33,25 +37,31 @@ export function validateHookInput(data: unknown): ValidatedHookInput | null {
 
 // --- Validation ProjectIndex (index-store.ts) ---
 
-const FileNodeSchema = z.object({
-  filePath: z.string(),
-  language: z.string(),
-  imports: z.array(z.object({
-    name: z.string(),
-    source: z.string(),
-    isTypeOnly: z.boolean(),
-  })),
-  exports: z.array(z.object({
-    name: z.string(),
-    kind: z.string(),
-    isTypeOnly: z.boolean(),
-  })),
-  functions: z.array(z.any()),
-  classes: z.array(z.any()),
-  types: z.array(z.any()),
-  routes: z.array(z.any()),
-  parsedAt: z.number(),
-}).passthrough();
+const FileNodeSchema = z
+  .object({
+    filePath: z.string(),
+    language: z.string(),
+    imports: z.array(
+      z.object({
+        name: z.string(),
+        source: z.string(),
+        isTypeOnly: z.boolean(),
+      }),
+    ),
+    exports: z.array(
+      z.object({
+        name: z.string(),
+        kind: z.string(),
+        isTypeOnly: z.boolean(),
+      }),
+    ),
+    functions: z.array(z.any()),
+    classes: z.array(z.any()),
+    types: z.array(z.any()),
+    routes: z.array(z.any()),
+    parsedAt: z.number(),
+  })
+  .passthrough();
 
 export const ProjectIndexSchema = z.object({
   projectRoot: z.string(),

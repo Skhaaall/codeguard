@@ -96,8 +96,8 @@ export function runSchemaCheck(index: ProjectIndex): SchemaResult {
       });
 
       // Signaler les champs manquants importants (pas les relations, pas createdAt/updatedAt)
-      const significantMissing = missingFields.filter((f) =>
-        !['createdAt', 'updatedAt', 'deletedAt', 'id'].includes(f),
+      const significantMissing = missingFields.filter(
+        (f) => !['createdAt', 'updatedAt', 'deletedAt', 'id'].includes(f),
       );
 
       if (significantMissing.length > 0) {
@@ -127,10 +127,11 @@ export function runSchemaCheck(index: ProjectIndex): SchemaResult {
   const tsEnums = collectTsEnums(nonPrismaTypes);
 
   for (const prismaEnum of prismaEnums) {
-    const tsMatch = tsEnums.find((e) =>
-      e.type.name === prismaEnum.name ||
-      e.type.name === prismaEnum.name + 'Type' ||
-      e.type.name === prismaEnum.name + 'Enum',
+    const tsMatch = tsEnums.find(
+      (e) =>
+        e.type.name === prismaEnum.name ||
+        e.type.name === prismaEnum.name + 'Type' ||
+        e.type.name === prismaEnum.name + 'Enum',
     );
 
     if (!tsMatch) continue;
@@ -193,7 +194,8 @@ function findMatchingTypes(
   return allTypes.filter(({ type }) => {
     const typeLower = type.name.toLowerCase();
     // Correspondances : User → UserDto, CreateUserDto, UserResponse, UserEntity, etc.
-    return typeLower === nameLower ||
+    return (
+      typeLower === nameLower ||
       typeLower === `${nameLower}dto` ||
       typeLower === `create${nameLower}dto` ||
       typeLower === `update${nameLower}dto` ||
@@ -201,7 +203,8 @@ function findMatchingTypes(
       typeLower === `${nameLower}entity` ||
       typeLower === `${nameLower}type` ||
       typeLower === `${nameLower}props` ||
-      typeLower === `${nameLower}data`;
+      typeLower === `${nameLower}data`
+    );
   });
 }
 

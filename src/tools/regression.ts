@@ -65,7 +65,7 @@ export function runRegressionMap(index: ProjectIndex, filePath: string): Regress
 
   // Trier : pages et routes API d'abord, puis par profondeur
   targets.sort((a, b) => {
-    const kindOrder = { 'page': 0, 'api-route': 1, 'entry-point': 2, 'component': 3 };
+    const kindOrder = { page: 0, 'api-route': 1, 'entry-point': 2, component: 3 };
     const kindDiff = kindOrder[a.kind] - kindOrder[b.kind];
     if (kindDiff !== 0) return kindDiff;
     return a.depth - b.depth;
@@ -79,15 +79,13 @@ export function runRegressionMap(index: ProjectIndex, filePath: string): Regress
 }
 
 /** Classifie un fichier selon son role dans le projet */
-function classifyFile(
-  filePath: string,
-  node: FileNode | undefined,
-): RegressionTarget['kind'] | null {
+function classifyFile(filePath: string, node: FileNode | undefined): RegressionTarget['kind'] | null {
   const normalized = filePath.replace(/\\/g, '/');
 
   // Pages Next.js (app/**/page.tsx)
   if (/\/app\/.*\/page\.(tsx?|jsx?)$/.test(normalized)) return 'page';
-  if (/\/pages\/.*\.(tsx?|jsx?)$/.test(normalized) && !normalized.includes('_app') && !normalized.includes('_document')) return 'page';
+  if (/\/pages\/.*\.(tsx?|jsx?)$/.test(normalized) && !normalized.includes('_app') && !normalized.includes('_document'))
+    return 'page';
 
   // Routes API
   if (/\/app\/.*\/route\.(ts|js)$/.test(normalized)) return 'api-route';
@@ -113,10 +111,7 @@ function classifyFile(
 }
 
 /** Extrait la route/URL associee a un fichier */
-function extractRoute(
-  filePath: string,
-  node: FileNode | undefined,
-): string | undefined {
+function extractRoute(filePath: string, node: FileNode | undefined): string | undefined {
   const normalized = filePath.replace(/\\/g, '/');
 
   // Next.js page : deduire l'URL du chemin
@@ -145,7 +140,6 @@ function extractRoute(
 
   return undefined;
 }
-
 
 /** Formate le resultat pour affichage MCP */
 export function formatRegressionResult(result: RegressionResult): string {

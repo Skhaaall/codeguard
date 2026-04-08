@@ -84,7 +84,9 @@ export async function indexProject(
       try {
         const mtime = statSync(prismaFile).mtimeMs;
         if (mtime <= existing.files[prismaFile].parsedAt) continue;
-      } catch { /* re-parser */ }
+      } catch {
+        /* re-parser */
+      }
     }
     try {
       const schema = parsePrismaSchema(prismaFile);

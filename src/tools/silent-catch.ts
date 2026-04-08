@@ -6,7 +6,7 @@
  */
 
 import { Project, SyntaxKind } from 'ts-morph';
-import type { CatchClause } from 'ts-morph';
+import type { CatchClause, CallExpression } from 'ts-morph';
 import { scanProject } from '../utils/scanner.js';
 
 export interface SilentCatchIssue {
@@ -101,7 +101,7 @@ const HAS_DEFAULT_RETURN = new RegExp(
   'return\\s+(' +
     // Litteraux simples
     'null|undefined|false|true|0|-1|NaN' +
-    "|''|\"\"|``" +
+    '|\'\'|""|``' +
     // Collections vides
     '|\\[\\]|\\{\\}' +
     // Constructeurs vides
@@ -112,7 +112,7 @@ const HAS_DEFAULT_RETURN = new RegExp(
     '|Promise\\.resolve\\s*\\(' +
     // RxJS fallback
     '|of\\s*\\(|EMPTY|Observable\\.empty' +
-  ')',
+    ')',
 );
 
 /** Assignation d'une valeur par defaut dans un catch (variable = default, setState(default)) */
@@ -122,7 +122,7 @@ const HAS_DEFAULT_ASSIGN = new RegExp(
     '\\w+\\s*=\\s*(null|undefined|false|\\[\\]|\\{\\}|0|\'\'|""|new\\s+\\w+\\s*\\()' +
     // React setState/set* avec default
     '|set\\w+\\s*\\(\\s*(null|undefined|false|\\[\\]|\\{\\}|0|\'\'|"")\\s*\\)' +
-  ')',
+    ')',
 );
 
 /** Classifie un .catch() sur une Promise */
@@ -153,17 +153,66 @@ function classifyPromiseCatch(callbackBody: string): 'critical' | 'high' | 'medi
   return 'ok';
 }
 
+/**
+ * Detecte si un .catch() est sur une promesse fire-and-forget.
+ * Fire-and-forget = le resultat de la promesse n'est ni await, ni assigne, ni retourne.
+ * C'est un side-effect intentionnel (ex: recalcul de prime, envoi de notification).
+ */
+function isFireAndForget(catchCall: CallExpression): boolean {
+  // Remonter au-dessus des appels chaines (.then().catch(), .finally())
+  let current = catchCall.getParent();
+
+  // Si le .catch() est chaine sur un .then()/.finally(), remonter encore
+  while (current) {
+    const kind = current.getKind();
+
+    // .then().catch() → le parent du .catch est un PropertyAccessExpression
+    // qui est lui-meme dans un CallExpression (.then)
+    if (kind === SyntaxKind.PropertyAccessExpression) {
+      const grandparent = current.getParent();
+      if (grandparent?.getKind() === SyntaxKind.CallExpression) {
+        current = grandparent.getParent();
+        continue;
+      }
+    }
+
+    break;
+  }
+
+  if (!current) return false;
+
+  const parentKind = current.getKind();
+
+  // await promise.catch() → pas fire-and-forget
+  if (parentKind === SyntaxKind.AwaitExpression) return false;
+
+  // const x = promise.catch() → pas fire-and-forget
+  if (parentKind === SyntaxKind.VariableDeclaration) return false;
+
+  // return promise.catch() → pas fire-and-forget
+  if (parentKind === SyntaxKind.ReturnStatement) return false;
+
+  // promise.catch() comme assignation (x = promise.catch()) → pas fire-and-forget
+  if (parentKind === SyntaxKind.BinaryExpression) return false;
+
+  // ExpressionStatement = statement standalone → fire-and-forget
+  if (parentKind === SyntaxKind.ExpressionStatement) return true;
+
+  // Dans un tableau, argument de fonction, etc. → probablement pas fire-and-forget
+  return false;
+}
+
 /** Retourne un message lisible selon la severite et le contenu du catch */
 function issueMessage(severity: 'critical' | 'high' | 'medium', catchText: string): string {
   switch (severity) {
     case 'critical':
-      return 'Catch vide — aucun traitement, l\'erreur disparait sans trace';
+      return "Catch vide — aucun traitement, l'erreur disparait sans trace";
     case 'high': {
       if (HAS_DEFAULT_ASSIGN.test(catchText) && !HAS_DEFAULT_RETURN.test(catchText)) {
-        return 'Assigne une valeur par defaut sans log — masque l\'erreur dans l\'etat';
+        return "Assigne une valeur par defaut sans log — masque l'erreur dans l'etat";
       }
       if (/return\s+\{/.test(catchText)) {
-        return 'Retourne un objet fallback sans log — l\'appelant ne sait pas que c\'est une erreur';
+        return "Retourne un objet fallback sans log — l'appelant ne sait pas que c'est une erreur";
       }
       return 'Valeur par defaut sans log — impossible de distinguer "pas de donnees" de "erreur"';
     }
@@ -172,10 +221,7 @@ function issueMessage(severity: 'critical' | 'high' | 'medium', catchText: strin
   }
 }
 
-export async function runSilentCatch(
-  projectRoot: string,
-  severityFilter: string,
-): Promise<SilentCatchResult> {
+export async function runSilentCatch(projectRoot: string, severityFilter: string): Promise<SilentCatchResult> {
   const result: SilentCatchResult = {
     totalCatches: 0,
     issueCount: 0,
@@ -185,9 +231,7 @@ export async function runSilentCatch(
 
   // Lister les fichiers .ts/.tsx du projet
   const scan = scanProject(projectRoot);
-  const tsFiles = scan.files.filter(
-    (f) => /\.(ts|tsx)$/.test(f) && !shouldSkipFile(f),
-  );
+  const tsFiles = scan.files.filter((f) => /\.(ts|tsx)$/.test(f) && !shouldSkipFile(f));
 
   // Parser avec ts-morph
   const project = new Project({ skipAddingFilesFromTsConfig: true });
@@ -247,18 +291,26 @@ export async function runSilentCatch(
         // Verifier prefixe _ dans les params
         if (/^\(\s*_/.test(callbackText) || /^_/.test(callbackText)) continue;
 
-        const severity = classifyPromiseCatch(bodyText);
+        let severity = classifyPromiseCatch(bodyText);
         if (severity === 'ok') continue;
+
+        // Fire-and-forget : promesse non-await dont le resultat n'est pas utilise
+        // → side-effect intentionnel, downgrader en info (pas un vrai probleme)
+        if (isFireAndForget(call) && severity === 'critical') {
+          severity = 'medium';
+        }
+
         if (severityFilter === 'critical' && severity !== 'critical') continue;
         if (severityFilter === 'high' && severity === 'medium') continue;
 
         result.bySeverity[severity]++;
         result.issueCount++;
+        const fireAndForgetLabel = isFireAndForget(call) ? ' (fire-and-forget)' : '';
         result.issues.push({
           severity,
           file: filePath,
           line: call.getStartLineNumber(),
-          message: issueMessage(severity, bodyText),
+          message: issueMessage(severity, bodyText) + fireAndForgetLabel,
           snippet: extractSnippet(callbackText),
         });
       }
@@ -291,7 +343,9 @@ export function formatSilentCatchResult(result: SilentCatchResult): string {
     return lines.join('\n');
   }
 
-  lines.push(`Repartition : ${result.bySeverity.critical} critical, ${result.bySeverity.high} high, ${result.bySeverity.medium} medium`);
+  lines.push(
+    `Repartition : ${result.bySeverity.critical} critical, ${result.bySeverity.high} high, ${result.bySeverity.medium} medium`,
+  );
 
   // Tableau resume
   lines.push('');

@@ -42,7 +42,15 @@ export function runChangelog(current: ProjectIndex, snapshot: ProjectIndex | nul
       snapshotDate: null,
       currentDate: current.indexedAt,
       entries: [],
-      summary: { filesAdded: 0, filesRemoved: 0, filesModified: 0, exportsAdded: 0, exportsRemoved: 0, routesAdded: 0, routesRemoved: 0 },
+      summary: {
+        filesAdded: 0,
+        filesRemoved: 0,
+        filesModified: 0,
+        exportsAdded: 0,
+        exportsRemoved: 0,
+        routesAdded: 0,
+        routesRemoved: 0,
+      },
     };
   }
 
@@ -68,11 +76,21 @@ export function runChangelog(current: ProjectIndex, snapshot: ProjectIndex | nul
       const node = current.files[filePath];
       for (const exp of node.exports) {
         exportsAdded++;
-        entries.push({ category: 'export', action: 'added', description: `Export ajoute : ${exp.name} (${exp.kind})`, filePath });
+        entries.push({
+          category: 'export',
+          action: 'added',
+          description: `Export ajoute : ${exp.name} (${exp.kind})`,
+          filePath,
+        });
       }
       for (const route of node.routes) {
         routesAdded++;
-        entries.push({ category: 'route', action: 'added', description: `Route ajoutee : ${route.method} ${route.path}`, filePath });
+        entries.push({
+          category: 'route',
+          action: 'added',
+          description: `Route ajoutee : ${route.method} ${route.path}`,
+          filePath,
+        });
       }
     }
   }
@@ -86,11 +104,21 @@ export function runChangelog(current: ProjectIndex, snapshot: ProjectIndex | nul
       const node = snapshot.files[filePath];
       for (const exp of node.exports) {
         exportsRemoved++;
-        entries.push({ category: 'export', action: 'removed', description: `Export supprime : ${exp.name} (${exp.kind})`, filePath });
+        entries.push({
+          category: 'export',
+          action: 'removed',
+          description: `Export supprime : ${exp.name} (${exp.kind})`,
+          filePath,
+        });
       }
       for (const route of node.routes) {
         routesRemoved++;
-        entries.push({ category: 'route', action: 'removed', description: `Route supprimee : ${route.method} ${route.path}`, filePath });
+        entries.push({
+          category: 'route',
+          action: 'removed',
+          description: `Route supprimee : ${route.method} ${route.path}`,
+          filePath,
+        });
       }
     }
   }
@@ -143,7 +171,11 @@ function diffFileNode(oldNode: FileNode, newNode: FileNode): Omit<ChangelogEntry
   }
   for (const [key, exp] of oldExports) {
     if (!newExports.has(key)) {
-      changes.push({ category: 'export', action: 'removed', description: `Export supprime : ${exp.name} (${exp.kind})` });
+      changes.push({
+        category: 'export',
+        action: 'removed',
+        description: `Export supprime : ${exp.name} (${exp.kind})`,
+      });
     }
   }
 
@@ -153,12 +185,20 @@ function diffFileNode(oldNode: FileNode, newNode: FileNode): Omit<ChangelogEntry
 
   for (const [key, route] of newRoutes) {
     if (!oldRoutes.has(key)) {
-      changes.push({ category: 'route', action: 'added', description: `Route ajoutee : ${route.method} ${route.path}` });
+      changes.push({
+        category: 'route',
+        action: 'added',
+        description: `Route ajoutee : ${route.method} ${route.path}`,
+      });
     }
   }
   for (const [key, route] of oldRoutes) {
     if (!newRoutes.has(key)) {
-      changes.push({ category: 'route', action: 'removed', description: `Route supprimee : ${route.method} ${route.path}` });
+      changes.push({
+        category: 'route',
+        action: 'removed',
+        description: `Route supprimee : ${route.method} ${route.path}`,
+      });
     }
   }
 
@@ -176,13 +216,21 @@ function diffFileNode(oldNode: FileNode, newNode: FileNode): Omit<ChangelogEntry
     for (const prop of newProps) {
       if (!oldProps.has(prop)) {
         const propName = prop.split(':')[0];
-        changes.push({ category: 'type', action: 'modified', description: `Type ${name} : propriete ajoutee "${propName}"` });
+        changes.push({
+          category: 'type',
+          action: 'modified',
+          description: `Type ${name} : propriete ajoutee "${propName}"`,
+        });
       }
     }
     for (const prop of oldProps) {
       if (!newProps.has(prop)) {
         const propName = prop.split(':')[0];
-        changes.push({ category: 'type', action: 'modified', description: `Type ${name} : propriete supprimee "${propName}"` });
+        changes.push({
+          category: 'type',
+          action: 'modified',
+          description: `Type ${name} : propriete supprimee "${propName}"`,
+        });
       }
     }
   }
@@ -222,7 +270,7 @@ export function formatChangelogResult(result: ChangelogResult): string {
   if (!result.hasSnapshot) {
     lines.push('');
     lines.push('> Pas de snapshot disponible. Le changelog sera disponible apres le prochain reindex.');
-    lines.push('> (Le reindex sauvegarde automatiquement un snapshot de l\'ancien index)');
+    lines.push("> (Le reindex sauvegarde automatiquement un snapshot de l'ancien index)");
     return lines.join('\n');
   }
 

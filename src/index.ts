@@ -8,10 +8,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { resolve } from 'node:path';
 import { statSync } from 'node:fs';
 
@@ -148,9 +145,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 `- Fichiers indexes : ${index.fileCount}`,
                 `- Noeuds dans le graphe : ${graph.getNodeCount()}`,
                 `- Aretes (dependances) : ${graph.getEdgeCount()}`,
-                ...(incremental ? [
-                  `- Re-parses : ${stats.parsed} | Inchanges : ${stats.skipped} | Supprimes : ${stats.removed}`,
-                ] : []),
+                ...(incremental
+                  ? [`- Re-parses : ${stats.parsed} | Inchanges : ${stats.skipped} | Supprimes : ${stats.removed}`]
+                  : []),
                 `- Date : ${new Date(index.indexedAt).toLocaleString('fr-FR')}`,
               ].join('\n'),
             },
@@ -162,9 +159,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const index = store.load();
         if (!index) {
           return {
-            content: [
-              { type: 'text' as const, text: 'Aucun index. Lancez "reindex" pour indexer le projet.' },
-            ],
+            content: [{ type: 'text' as const, text: 'Aucun index. Lancez "reindex" pour indexer le projet.' }],
           };
         }
         const age = Date.now() - index.indexedAt;
@@ -327,9 +322,7 @@ function requireString(value: unknown, name: string): string {
 function resolveFilePath(input: string): string {
   if (!input) throw new Error('Chemin de fichier requis');
   // Resoudre par rapport a la racine du projet
-  const resolved = input.startsWith('/') || input.match(/^[A-Z]:\\/i)
-    ? resolve(input)
-    : resolve(resolvedRoot, input);
+  const resolved = input.startsWith('/') || input.match(/^[A-Z]:\\/i) ? resolve(input) : resolve(resolvedRoot, input);
   // Bloquer le path traversal — le chemin doit rester dans le projet
   const normalizedResolved = resolved.replace(/\\/g, '/').toLowerCase();
   const normalizedRoot = resolvedRoot.replace(/\\/g, '/').toLowerCase();

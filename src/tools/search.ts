@@ -89,10 +89,7 @@ export function searchIndex(index: ProjectIndex, query: string): SearchResult {
 
     // Chercher dans les routes
     for (const route of node.routes) {
-      if (
-        route.path.toLowerCase().includes(queryLower) ||
-        route.handler.toLowerCase().includes(queryLower)
-      ) {
+      if (route.path.toLowerCase().includes(queryLower) || route.handler.toLowerCase().includes(queryLower)) {
         matches.push({
           filePath,
           context: `${route.method} ${route.path} → ${route.handler}`,

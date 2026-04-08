@@ -36,7 +36,19 @@ import { DependencyGraph } from './graph/dependency-graph.js';
 import type { ProjectIndex } from './storage/index-store.js';
 
 const COMMANDS_HOOK = ['guard', 'check'];
-const COMMANDS_CLI = ['init', 'status', 'impact', 'health', 'regression', 'graph', 'schema', 'routes', 'changelog', 'whatsnew', 'silent_catch'];
+const COMMANDS_CLI = [
+  'init',
+  'status',
+  'impact',
+  'health',
+  'regression',
+  'graph',
+  'schema',
+  'routes',
+  'changelog',
+  'whatsnew',
+  'silent_catch',
+];
 const ALL_COMMANDS = [...COMMANDS_HOOK, ...COMMANDS_CLI];
 
 // --- Lecture stdin ---
@@ -229,8 +241,8 @@ async function runCliMode(command: string): Promise<void> {
   // Pour init/status/health, project root est argv[3]
   const needsFile = command === 'impact' || command === 'regression';
   const optionalFile = command === 'graph';
-  const fileArg = (needsFile || optionalFile) ? process.argv[3] : undefined;
-  const rootArg = (needsFile || optionalFile) ? process.argv[4] : process.argv[3];
+  const fileArg = needsFile || optionalFile ? process.argv[3] : undefined;
+  const rootArg = needsFile || optionalFile ? process.argv[4] : process.argv[3];
 
   if (needsFile && !fileArg) {
     console.error(`Usage: codeguard-cli ${command} <fichier> [project-root]`);
