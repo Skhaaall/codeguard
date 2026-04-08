@@ -31,37 +31,23 @@ Serveur MCP qui analyse le code TypeScript/Prisma d'un projet, construit un grap
 ## Installation
 
 ```bash
-npm install -g @skhaall/codeguard
+npm install -g skhaall-codeguard
 ```
+
+> Les commandes peuvent etre lancees dans un **terminal classique** ou dans **Claude Code** avec le prefixe `!` (ex: `! npm install -g skhaall-codeguard`).
 
 Ou depuis les sources :
 
 ```bash
 git clone https://github.com/Skhaaall/codeguard.git
-cd codeguard
-npm install
-npm run build
+cd codeguard && npm install && npm run build
 ```
 
-## Setup (hooks automatiques)
+## Configuration
 
-Installe les hooks guard + check globalement dans Claude Code :
+### 1. Serveur MCP (connecte CodeGuard a Claude Code)
 
-```bash
-codeguard-setup setup
-```
-
-Pour les retirer :
-
-```bash
-codeguard-setup unsetup
-```
-
-## Utilisation
-
-### Serveur MCP (pour Claude Code)
-
-Ajouter dans le `.mcp.json` du projet :
+Ajouter dans le `.mcp.json` a la racine du projet :
 
 ```json
 {
@@ -73,6 +59,34 @@ Ajouter dans le `.mcp.json` du projet :
   }
 }
 ```
+
+### 2. Hooks automatiques (guard + check a chaque modification)
+
+```bash
+codeguard-setup setup
+```
+
+Ca installe deux hooks dans `~/.claude/settings.local.json` :
+- **guard** — se lance automatiquement AVANT chaque Edit/Write dans Claude Code
+- **check** — se lance automatiquement APRES chaque Edit/Write dans Claude Code
+
+Pour les retirer :
+
+```bash
+codeguard-setup unsetup
+```
+
+### 3. Indexer le projet
+
+A la racine du projet :
+
+```bash
+codeguard-cli init
+```
+
+Ca cree un dossier `.codeguard/` avec l'index du projet (ajouter `.codeguard/` au `.gitignore`).
+
+## Utilisation
 
 ### CLI
 
