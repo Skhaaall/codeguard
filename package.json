@@ -1,6 +1,6 @@
 {
   "name": "skhaall-codeguard",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server — analyse de code TypeScript/Prisma, graphe de dependances, impact analysis pour Claude Code",
   "type": "module",
   "main": "dist/index.js",
