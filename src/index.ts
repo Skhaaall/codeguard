@@ -28,6 +28,7 @@ import { runRouteGuard, formatRouteGuardResult } from './tools/routes.js';
 import { runChangelog, formatChangelogResult } from './tools/changelog.js';
 import { runWhatsnew, formatWhatsnewResult } from './tools/whatsnew.js';
 import { runSilentCatch, formatSilentCatchResult } from './tools/silent-catch.js';
+import { runExternalMap, formatExternalMapResult } from './tools/external-map.js';
 import { TOOL_DEFINITIONS } from './tools/tool-definitions.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 
@@ -293,6 +294,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = runChangelog(index, snapshot);
         return {
           content: [{ type: 'text' as const, text: formatChangelogResult(result) }],
+        };
+      }
+
+      case 'external_map': {
+        const index = getIndex();
+        const result = runExternalMap(index);
+        return {
+          content: [{ type: 'text' as const, text: formatExternalMapResult(result) }],
         };
       }
 

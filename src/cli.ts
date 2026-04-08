@@ -32,6 +32,7 @@ import { runRouteGuard, formatRouteGuardResult } from './tools/routes.js';
 import { runChangelog, formatChangelogResult } from './tools/changelog.js';
 import { runWhatsnew, formatWhatsnewResult } from './tools/whatsnew.js';
 import { runSilentCatch, formatSilentCatchResult } from './tools/silent-catch.js';
+import { runExternalMap, formatExternalMapResult } from './tools/external-map.js';
 import { DependencyGraph } from './graph/dependency-graph.js';
 import type { ProjectIndex } from './storage/index-store.js';
 
@@ -48,6 +49,7 @@ const COMMANDS_CLI = [
   'changelog',
   'whatsnew',
   'silent_catch',
+  'external_map',
 ];
 const ALL_COMMANDS = [...COMMANDS_HOOK, ...COMMANDS_CLI];
 
@@ -360,6 +362,13 @@ async function runCliMode(command: string): Promise<void> {
       console.log(formatSilentCatchResult(result));
       break;
     }
+
+    case 'external_map': {
+      const index = await ensureIndex(projectRoot);
+      const result = runExternalMap(index);
+      console.log(formatExternalMapResult(result));
+      break;
+    }
   }
 }
 
@@ -381,6 +390,7 @@ async function main(): Promise<void> {
     console.log(`  schema  [project-root]          Coherence Prisma ↔ DTOs ↔ types`);
     console.log(`  routes  [project-root]          Coherence routes frontend ↔ backend`);
     console.log(`  changelog [project-root]        Diff depuis le dernier reindex`);
+    console.log(`  external_map [project-root]      Carte des connexions externes (packages, env, API)`);
     console.log(`  guard   [project-root]          Hook pre-modification (stdin JSON)`);
     console.log(`  check   [project-root]          Hook post-modification (stdin JSON)`);
     process.exit(command ? 1 : 0);

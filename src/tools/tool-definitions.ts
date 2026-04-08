@@ -205,4 +205,13 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {},
     },
   },
+  {
+    name: 'external_map',
+    description:
+      "Cartographie les connexions externes du projet : packages npm (utilises, inutilises, critiques), variables d'environnement (process.env), appels API sortants (fetch/axios). A lancer pour comprendre les dependances externes et detecter les risques.",
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];

@@ -6,9 +6,16 @@ Versioning : [Semantic Versioning](https://semver.org/lang/fr/)
 
 ## [Unreleased]
 
+### Added
+
+- Outil `external_map` — carte des connexions externes : packages npm (utilises, inutilises, critiques), variables d'environnement, appels API sortants
+- CLI : commande `external_map`
+- 16 outils MCP (etait 15)
+
 ## [0.2.0] - 2026-04-08
 
 ### Added
+
 - Outil `whatsnew` — resume des changements depuis le dernier reindex (fichiers, signatures, routes, hotfiles)
 - Outil `silent_catch` — detection des catches silencieux (catch vides, return sans log, setState default, .catch(() => {}))
 - Guard enrichi : historique git par fonction (auteur, date relative, lignes +/-)
@@ -28,17 +35,20 @@ Versioning : [Semantic Versioning](https://semver.org/lang/fr/)
 - Catalogue d'outils dans `tools/tool-definitions.ts`
 
 ### Changed
+
 - Refactoring : extracteurs API/auth dans `parsers/extractors/`
 - Route matching : support des prefixes `/api`, `/api/v1`, `/api/v2`
 - Distinction frontend/backend dans la collecte des appels API
 
 ### Fixed
+
 - Resolution project root : remonte a la racine git pour les monorepos (plus de `.codeguard/` parasites dans les sous-dossiers)
 - Non-null assertion remplacee par guard clause dans changelog.ts
 
 ## [0.1.0] - 2026-04-04
 
 ### Added
+
 - Serveur MCP stdio avec 11 outils (impact, guard, check, health, search, dependencies, reindex, status, regression_map, graph, schema_check)
 - Parser TypeScript/JavaScript profond via ts-morph (imports, exports, fonctions, classes, types, routes)
 - Parser Prisma custom (modeles, champs, relations, enums)
@@ -59,6 +69,7 @@ Versioning : [Semantic Versioning](https://semver.org/lang/fr/)
 - 58+ assertions dans test-mcp.mjs
 
 ### Security
+
 - Path traversal bloque (chemins doivent rester dans le projet)
 - Stdin limite a 1 Mo, index limite a 50 Mo
 - Liens symboliques ignores

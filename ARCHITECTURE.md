@@ -13,7 +13,7 @@ Projet cible (.ts/.tsx/.prisma)
         |
    [ Graphe ]  ← dependances bidirectionnelles
         |
-   [ 15 outils MCP ]  ← guard, check, impact, health, whatsnew, silent_catch...
+   [ 16 outils MCP ]  ← guard, check, impact, health, whatsnew, silent_catch, external_map...
         |
    Claude Code / CLI
 ```
@@ -34,7 +34,7 @@ Projet cible (.ts/.tsx/.prisma)
 
 ### Outils (`src/tools/`)
 
-15 outils MCP : impact, guard, check, health, search, dependencies, reindex, status, regression_map, graph, schema_check, route_guard, whatsnew, silent_catch, changelog.
+16 outils MCP : impact, guard, check, health, search, dependencies, reindex, status, regression_map, graph, schema_check, route_guard, whatsnew, silent_catch, changelog, external_map.
 
 ### Storage (`src/storage/`)
 
